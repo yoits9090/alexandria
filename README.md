@@ -23,12 +23,11 @@ go run ./cmd/alexandria
 ```
 
 ```bash
-curl -sS -X POST http://localhost:8080/v1/search \
-  -H 'content-type: application/json' \
-  -d '{"query":"Go context cancellation","max_results":5,"max_tokens":500}' | jq
+curl -sS 'http://localhost:8080/v1/search?q=Go%20context%20cancellation&max_results=5&max_tokens=500' \
+  -H 'accept: text/toon' 
 ```
 
-Endpoints: `GET /healthz`, `GET /readyz`, `GET /openapi.json`, `GET /v1/search?q=...`, `POST /v1/search`. Compatibility aliases preserve the original split: `/search` defaults to HTML and accepts `json`, `text`, or `html`; `/api/search` is always JSON and ignores its `format` parameter. Use ``format=toon` on `/v1/search` or `/search` for the compact LLM context representation. `/v1/search` defaults to JSON.
+Endpoints: `GET /healthz`, `GET /readyz`, `GET /openapi.json`, `GET /v1/search?q=...` (TOON by default), and `POST /v1/search` (TOON by default; set `format` or `Accept` for another representation). TOON is the main representation: `/v1/search` and `/search` default to `text/toon` and accept `json`, `text`, `html`, or `toon`; `/api/search` remains JSON for legacy clients and ignores its `format` parameter. Use `format=json` when a JSON response is needed.
 
 ## Request and response
 
@@ -62,7 +61,7 @@ Set `ALEXANDRIA_API_KEY` to protect `/v1/search`, `/search`, and `/api/search`. 
 
 ## LLM smoke harness
 
-`tools/jcode.py` is a tiny OpenAI-compatible harness. It searches Alexandria, uses TOON by default for the LLM prompt when DeepSeek is enabled, and optionally asks a DeepSeek-compatible endpoint to answer only from returned sources. stdout remains JSON by default; use `--toon` to print the compact context. It defaults to `DEEPSEEK_MODEL=deepseek-v4-flash`; set your account's model name explicitly if your endpoint exposes a different “V4 Flash” identifier. **Never put an API key in source, git, or Colab command history.**
+`tools/jcode.py` is a tiny OpenAI-compatible harness. It searches Alexandria, uses TOON by default for the LLM prompt when DeepSeek is enabled, and optionally asks a DeepSeek-compatible endpoint to answer only from returned sources. TOON is the default CLI representation; use `--format json` for legacy JSON output. DeepSeek prompts also use TOON by default. It defaults to `DEEPSEEK_MODEL=deepseek-v4-flash`; set your account's model name explicitly if your endpoint exposes a different “V4 Flash” identifier. **Never put an API key in source, git, or Colab command history.**
 
 ```bash
 export DEEPSEEK_API_KEY='...'

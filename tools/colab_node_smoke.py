@@ -15,7 +15,7 @@ env = dict(os.environ, SEARX_URL=f"http://127.0.0.1:{fixture.server_port}", ALEX
 server = subprocess.Popen(["/content/alexandria-linux-amd64"], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 try:
     time.sleep(0.5)
-    result = subprocess.run([sys.executable, "/content/jcode.py", "remote fixture", "--search-url", "http://127.0.0.1:18080/v1/search", "--no-llm"], capture_output=True, text=True, timeout=20)
+    result = subprocess.run([sys.executable, "/content/jcode.py", "remote fixture", "--search-url", "http://127.0.0.1:18080/v1/search", "--no-llm", "--format", "json"], capture_output=True, text=True, timeout=20)
     print(result.stdout)
     if result.returncode != 0 or "Remote fixture" not in result.stdout: raise SystemExit("remote smoke failed: " + result.stderr)
     print("REMOTE_SMOKE_OK")

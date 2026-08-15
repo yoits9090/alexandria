@@ -342,11 +342,14 @@ func HandlerWithOptions(s *Service, apiKey string, limiter *RateLimiter) http.Ha
 				req.Providers = names
 			}
 			format := strings.ToLower(values.Get("format"))
-			// Preserve the original UGPTSearch compatibility split: /search
-			// defaults to HTML, while /api/search is always JSON. The canonical
-			// /v1/search endpoint defaults to JSON and honors an explicit format.
+			// TOON is Alexandria's canonical LLM representation. Keep the
+			// legacy endpoints explicit: /search defaults TOON, while /api/search
+			// remains JSON for existing clients.
 			if r.URL.Path == "/search" && format == "" {
-				format = "html"
+				format = "toon"
+			}
+			if r.URL.Path == "/v1/search" && format == "" {
+				format = "toon"
 			}
 			if r.URL.Path == "/api/search" {
 				format = "json"
@@ -376,7 +379,23 @@ func HandlerWithOptions(s *Service, apiKey string, limiter *RateLimiter) http.Ha
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		format := strings.ToLower(strings.TrimSpace(req.Format))
+		if format == "" {
+			format = negotiatedFormat(r)
+		}
+		if r.URL.Path == "/api/search" {
+			format = "json"
+		}
+		if format != "json" && format != "text" && format != "txt" && format != "html" && format != "toon" {
+			writeError(w, http.StatusBadRequest, "format must be json, text, html, or toon")
+			return
+		}
 		resp, err := s.Search(r.Context(), req)
+		if err == nil {
+			resp.RequestID = w.Header().Get("X-Request-ID")
+			writeFormat(w, format, resp)
+			return
+		}
 		respondSearch(w, resp, err)
 	}
 	protectedSearch := APIKeyAuth(RateLimit(http.HandlerFunc(searchEndpoint), limiter), apiKey)
@@ -385,6 +404,20 @@ func HandlerWithOptions(s *Service, apiKey string, limiter *RateLimiter) http.Ha
 	mux.Handle("/search", protectedSearch)
 	mux.Handle("/api/search", protectedSearch)
 	return requestID(mux)
+}
+
+func negotiatedFormat(r *http.Request) string {
+	accept := strings.ToLower(r.Header.Get("Accept"))
+	if strings.Contains(accept, "application/json") {
+		return "json"
+	}
+	if strings.Contains(accept, "text/plain") {
+		return "text"
+	}
+	if strings.Contains(accept, "text/html") {
+		return "html"
+	}
+	return "toon"
 }
 
 func parseSafeSearch(v string) (bool, bool) {

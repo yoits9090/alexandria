@@ -204,7 +204,7 @@ func TestLegacyRouteFormats(t *testing.T) {
 	cases := []struct {
 		path, content string
 		code          int
-	}{{"/search?q=q", "text/html", 200}, {"/search?q=q&format=json", "application/json", 200}, {"/api/search?q=q&format=text", "application/json", 200}}
+	}{{"/search?q=q", "text/toon", 200}, {"/search?q=q&format=json", "application/json", 200}, {"/api/search?q=q&format=text", "application/json", 200}}
 	for _, tc := range cases {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", tc.path, nil)
@@ -234,5 +234,20 @@ func TestServiceAllTimeoutReturnsDeadline(t *testing.T) {
 	s.Timeout = 5 * time.Millisecond
 	if _, err := s.Search(context.Background(), SearchRequest{Query: "q"}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestPostTOONAndNegotiation(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "a", page: ProviderPage{Results: []ProviderResult{{Title: "T", URL: "https://e.test"}}}}}, nil)
+	for _, tc := range []struct{ body, accept, typ string }{{`{"query":"q","format":"toon"}`, "", "text/toon"}, {`{"query":"q"}`, "application/json", "application/json"}} {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/v1/search", strings.NewReader(tc.body))
+		if tc.accept != "" {
+			req.Header.Set("Accept", tc.accept)
+		}
+		Handler(s).ServeHTTP(rr, req)
+		if rr.Code != 200 || !strings.HasPrefix(rr.Header().Get("Content-Type"), tc.typ) {
+			t.Fatalf("%s: %d %s", tc.body, rr.Code, rr.Body.String())
+		}
 	}
 }

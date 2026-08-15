@@ -17,6 +17,7 @@ type SearchRequest struct {
 	Region         string   `json:"region,omitempty"`
 	SafeSearch     *bool    `json:"safe_search,omitempty"`
 	Content        string   `json:"content,omitempty"`
+	Format         string   `json:"format,omitempty"`
 }
 
 type SearchResult struct {
