@@ -59,6 +59,12 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 	if req.Content != "" && req.Content != "snippets" {
 		return SearchResponse{}, fmt.Errorf("content must be snippets")
 	}
+	if req.Freshness != "" && !validFreshness(req.Freshness) {
+		return SearchResponse{}, fmt.Errorf("freshness must be day, week, month, or year")
+	}
+	if req.SearchDepth != "" && !validSearchDepth(req.SearchDepth) {
+		return SearchResponse{}, fmt.Errorf("search_depth is unsupported")
+	}
 	names := uniqueNames(req.Providers)
 	if len(names) == 0 {
 		names = append([]string(nil), s.defaultProviders...)
@@ -159,9 +165,13 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 	all := []SearchResult{}
 	statuses := []ProviderStatus{}
 	success := 0
+	deadlineFailure := false
 	for r := range ch {
 		st := ProviderStatus{Name: r.name, OK: r.err == nil, LatencyMS: r.latency}
 		if r.err != nil {
+			if errors.Is(r.err, context.DeadlineExceeded) {
+				deadlineFailure = true
+			}
 			st.Error = redactError(r.err)
 		} else {
 			success++
@@ -174,6 +184,9 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 	sort.Slice(statuses, func(i, j int) bool { return statuses[i].Name < statuses[j].Name })
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return SearchResponse{Query: query, Providers: statuses, Usage: Usage{MaxTokens: maxT}}, ctxErr
+	}
+	if deadlineFailure {
+		return SearchResponse{Query: query, Providers: statuses, Usage: Usage{MaxTokens: maxT}}, context.DeadlineExceeded
 	}
 	if success == 0 {
 		return SearchResponse{Query: query, Providers: statuses, Usage: Usage{MaxTokens: maxT}}, fmt.Errorf("all providers failed")
@@ -199,6 +212,21 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 	packed, usage := pack(all, maxT, s.Tokenizer)
 	return SearchResponse{Query: query, Results: packed, Providers: statuses, Usage: usage}, nil
 }
+func validFreshness(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "pd", "pw", "pm", "py", "day", "week", "month", "year", "d", "w", "m", "y":
+		return true
+	}
+	return false
+}
+func validSearchDepth(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "basic", "advanced", "fast", "deep", "deep-reasoning", "auto", "instant", "deep-lite":
+		return true
+	}
+	return false
+}
+
 func uniqueNames(in []string) []string {
 	out := make([]string, 0, len(in))
 	seen := make(map[string]struct{}, len(in))
@@ -320,6 +348,9 @@ func HandlerWithOptions(s *Service, apiKey string, limiter *RateLimiter) http.Ha
 			}
 			resp, err := s.Search(r.Context(), req)
 			if format != "" && err == nil {
+				if resp.RequestID == "" {
+					resp.RequestID = w.Header().Get("X-Request-ID")
+				}
 				writeFormat(w, format, resp)
 				return
 			}

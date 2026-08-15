@@ -578,6 +578,9 @@ func (p *HTTPProvider) do(req *http.Request, dst any) error {
 			}
 			attemptReq.Body = req.Body
 		}
+		if id := requestIDFromContext(attemptReq.Context()); id != "" {
+			attemptReq.Header.Set("X-Request-ID", id)
+		}
 		resp, err := p.client.Do(attemptReq)
 		if err != nil {
 			last = fmt.Errorf("%s request failed", p.name)

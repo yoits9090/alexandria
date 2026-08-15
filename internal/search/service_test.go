@@ -187,3 +187,14 @@ func TestErrorResponseCarriesRequestID(t *testing.T) {
 		t.Fatalf("%d %s", rr.Code, rr.Body.String())
 	}
 }
+
+func TestFormatJSONCarriesRequestID(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "a", page: ProviderPage{Results: []ProviderResult{{Title: "T", URL: "https://e.test"}}}}}, nil)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/search?q=q&format=json", nil)
+	req.Header.Set("X-Request-ID", "fmt-1")
+	Handler(s).ServeHTTP(rr, req)
+	if rr.Code != 200 || !strings.Contains(rr.Body.String(), `"request_id":"fmt-1"`) {
+		t.Fatalf("%d %s", rr.Code, rr.Body.String())
+	}
+}

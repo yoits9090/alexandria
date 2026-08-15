@@ -147,3 +147,18 @@ func TestProviderRejectsRedirect(t *testing.T) {
 		t.Fatalf("redirect behavior err=%v hits=%d", err, targetHits)
 	}
 }
+
+func TestProviderPropagatesRequestID(t *testing.T) {
+	var got string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("X-Request-ID")
+		w.Header().Set("content-type", "application/json")
+		w.Write([]byte(`{"web":{"results":[]}}`))
+	}))
+	defer ts.Close()
+	ctx := context.WithValue(context.Background(), requestIDContextKey{}, "req-123")
+	_, err := NewBrave(ts.URL, "k", ts.Client()).Search(ctx, ProviderQuery{Query: "q"})
+	if err != nil || got != "req-123" {
+		t.Fatalf("err=%v id=%q", err, got)
+	}
+}

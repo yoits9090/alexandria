@@ -48,7 +48,7 @@ func respondSearch(w http.ResponseWriter, resp SearchResponse, err error) {
 			status = http.StatusGatewayTimeout
 		}
 		message := err.Error()
-		if strings.HasPrefix(message, "query is required") || strings.HasPrefix(message, "max_results") || strings.HasPrefix(message, "max_tokens") || strings.HasPrefix(message, "unknown provider") || strings.HasPrefix(message, "no search providers") || strings.HasPrefix(message, "too many providers") || strings.HasPrefix(message, "content must") || strings.HasPrefix(message, "format must") || strings.Contains(message, "does not support") {
+		if strings.HasPrefix(message, "query is required") || strings.HasPrefix(message, "max_results") || strings.HasPrefix(message, "max_tokens") || strings.HasPrefix(message, "unknown provider") || strings.HasPrefix(message, "no search providers") || strings.HasPrefix(message, "too many providers") || strings.HasPrefix(message, "content must") || strings.HasPrefix(message, "format must") || strings.HasPrefix(message, "freshness must") || strings.HasPrefix(message, "search_depth") || strings.HasPrefix(message, "content must") || strings.Contains(message, "does not support") {
 			status = http.StatusBadRequest
 		}
 		if resp.Query != "" {
@@ -63,6 +63,16 @@ func respondSearch(w http.ResponseWriter, resp SearchResponse, err error) {
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
+
+type requestIDContextKey struct{}
+
+func requestIDFromContext(ctx context.Context) string {
+	if v, ok := ctx.Value(requestIDContextKey{}).(string); ok {
+		return v
+	}
+	return ""
+}
+
 func requestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.Header.Get("X-Request-ID"))
@@ -70,6 +80,7 @@ func requestID(next http.Handler) http.Handler {
 			id = strconv.FormatInt(time.Now().UnixNano(), 10)
 		}
 		w.Header().Set("X-Request-ID", id)
+		r = r.WithContext(context.WithValue(r.Context(), requestIDContextKey{}, id))
 		next.ServeHTTP(w, r)
 	})
 }
