@@ -198,3 +198,19 @@ func TestFormatJSONCarriesRequestID(t *testing.T) {
 		t.Fatalf("%d %s", rr.Code, rr.Body.String())
 	}
 }
+
+func TestLegacyRouteFormats(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "a", page: ProviderPage{Results: []ProviderResult{{Title: "T", URL: "https://e.test"}}}}}, nil)
+	cases := []struct {
+		path, content string
+		code          int
+	}{{"/search?q=q", "text/html", 200}, {"/search?q=q&format=json", "application/json", 200}, {"/api/search?q=q&format=text", "application/json", 200}}
+	for _, tc := range cases {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", tc.path, nil)
+		Handler(s).ServeHTTP(rr, req)
+		if rr.Code != tc.code || !strings.HasPrefix(rr.Header().Get("Content-Type"), tc.content) {
+			t.Fatalf("%s: code=%d type=%q body=%s", tc.path, rr.Code, rr.Header().Get("Content-Type"), rr.Body.String())
+		}
+	}
+}

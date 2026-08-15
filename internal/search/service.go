@@ -342,6 +342,15 @@ func HandlerWithOptions(s *Service, apiKey string, limiter *RateLimiter) http.Ha
 				req.Providers = names
 			}
 			format := strings.ToLower(values.Get("format"))
+			// Preserve the original UGPTSearch compatibility split: /search
+			// defaults to HTML, while /api/search is always JSON. The canonical
+			// /v1/search endpoint defaults to JSON and honors an explicit format.
+			if r.URL.Path == "/search" && format == "" {
+				format = "html"
+			}
+			if r.URL.Path == "/api/search" {
+				format = "json"
+			}
 			if format != "" && format != "json" && format != "text" && format != "txt" && format != "html" {
 				writeError(w, http.StatusBadRequest, "format must be json, text, or html")
 				return
