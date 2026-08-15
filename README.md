@@ -2,7 +2,7 @@
 
 Alexandria is a Go search gateway for LLM applications—the renewal of `ugpt-search` with a provider-neutral API, broad search-provider compatibility, and an explicit token budget. It returns compact, normalized snippets rather than forcing every agent to pay for raw provider payloads.
 
-> Early MVP: Brave Web Search, Tavily, SearXNG, Serper, Exa, Bing, and Google Custom Search adapters are included. Serper, Google Custom Search, Bing, Exa, and self-hosted providers can be added behind the same interface.
+> Early MVP: Brave Web Search, Tavily, SearXNG, Serper, Exa, Bing, and Google Custom Search adapters are included behind one provider interface.
 
 ## Why Alexandria
 
@@ -81,4 +81,4 @@ For a one-shot job that always cleans up, use `colab --auth=adc run tools/colab_
 
 ## License
 
-MIT (this renewal is a new implementation; the prior `ugpt` project remains separate).
+GNU General Public License v3.0 or later (GPL-3.0-or-later), retaining the original UGPTSearch project's copyleft direction. This is a new implementation; no code or secrets were copied from the prior repository.
