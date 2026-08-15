@@ -22,7 +22,7 @@ func APIKeyAuth(next http.Handler, configuredKey string) http.Handler {
 			return
 		}
 		w.Header().Set("WWW-Authenticate", `Bearer realm="alexandria"`)
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
+		writeError(w, http.StatusUnauthorized, "authentication required")
 	})
 }
 
@@ -34,7 +34,7 @@ func requestToken(r *http.Request) string {
 		}
 		return ""
 	}
-	return r.Header.Get("X-API-Key")
+	return strings.TrimSpace(r.Header.Get("X-API-Key"))
 }
 
 func constantTimeTokenMatch(candidate, configured string) bool {

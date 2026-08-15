@@ -9,7 +9,7 @@ import (
 )
 
 func TestDiscoverSearX(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "application/json")
 		w.Write([]byte(`{"instances":{"https://one.test":{"status":"online","is_tor":false},"https://two.test":{"status":"offline","is_tor":false},"https://tor.test":{"status":"online","is_tor":true}}}`))
 	}))

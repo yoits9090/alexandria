@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const minimumTokenBudget = 34
+
 // TokenEstimator deliberately has no tokenizer dependency. It is conservative
 // enough for an API boundary and can be replaced by a model-specific tokenizer.
 type TokenEstimator interface {
@@ -37,6 +39,9 @@ func (ApproxTokenizer) Truncate(s string, n int) string {
 }
 
 func pack(results []SearchResult, maxTokens int, tok TokenEstimator) ([]SearchResult, Usage) {
+	if tok == nil {
+		tok = ApproxTokenizer{}
+	}
 	if maxTokens <= 0 {
 		maxTokens = 1
 	}

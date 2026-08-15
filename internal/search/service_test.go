@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -113,5 +114,76 @@ func TestHandlerRejectsTrailingJSON(t *testing.T) {
 	Handler(s).ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestRateLimit(t *testing.T) {
+	limiter := NewRateLimiter(2, time.Minute)
+	s := NewService([]Provider{fakeProvider{name: "a", page: ProviderPage{Results: []ProviderResult{{Title: "T", URL: "https://example.com"}}}}}, nil)
+	h := HandlerWithOptions(s, "", limiter)
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("GET", "/v1/search?q=q", nil)
+		req.RemoteAddr = "192.0.2.1:1234"
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != 200 {
+			t.Fatalf("request %d: %d", i, rr.Code)
+		}
+	}
+	req := httptest.NewRequest("GET", "/v1/search?q=q", nil)
+	req.RemoteAddr = "192.0.2.1:1234"
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusTooManyRequests || rr.Header().Get("Retry-After") == "" {
+		t.Fatalf("rate limit: %d %v", rr.Code, rr.Header())
+	}
+}
+
+func TestRequestIDValidation(t *testing.T) {
+	s := NewService(nil, nil)
+	h := Handler(s)
+	for _, tc := range []struct {
+		in    string
+		valid bool
+	}{{"ok-id_1", true}, {"bad\nvalue", false}, {string(make([]byte, 129)), false}} {
+		req := httptest.NewRequest("GET", "/healthz", nil)
+		req.Header.Set("X-Request-ID", tc.in)
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		got := rr.Header().Get("X-Request-ID")
+		if (got == tc.in) != tc.valid {
+			t.Fatalf("input valid=%v got %q", tc.valid, got)
+		}
+	}
+}
+
+func TestServiceRejectsTooManyProviders(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "a"}}, nil)
+	names := make([]string, 17)
+	for i := range names {
+		names[i] = "a" + strconv.Itoa(i)
+	}
+	if _, err := s.Search(context.Background(), SearchRequest{Query: "q", Providers: names}); err == nil {
+		t.Fatal("expected cap")
+	}
+}
+func TestGetFormatJSON(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "a", page: ProviderPage{Results: []ProviderResult{{Title: "T", URL: "https://e.test"}}}}}, nil)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/search?q=q&format=json", nil)
+	Handler(s).ServeHTTP(rr, req)
+	if rr.Code != 200 || !strings.Contains(rr.Body.String(), `"results"`) {
+		t.Fatalf("%d %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestErrorResponseCarriesRequestID(t *testing.T) {
+	s := NewService(nil, nil)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/v1/search", strings.NewReader("{}"))
+	req.Header.Set("X-Request-ID", "client-req")
+	Handler(s).ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest || !strings.Contains(rr.Body.String(), `"request_id":"client-req"`) {
+		t.Fatalf("%d %s", rr.Code, rr.Body.String())
 	}
 }

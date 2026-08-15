@@ -18,8 +18,8 @@ func cleanText(s string) string {
 
 func canonicalURL(raw string) string {
 	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return raw
+	if err != nil || u.Host == "" || u.User != nil || (strings.ToLower(u.Scheme) != "http" && strings.ToLower(u.Scheme) != "https") {
+		return ""
 	}
 	u.Fragment = ""
 	q := u.Query()

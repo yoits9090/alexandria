@@ -1,6 +1,7 @@
 package search
 
 import (
+	"context"
 	"testing"
 )
 
@@ -14,5 +15,24 @@ func TestBudgetNeverExceeds(t *testing.T) {
 	r, u := pack([]SearchResult{{Title: "Title", URL: "https://example.com", Snippet: "lots of words lots of words lots of words"}}, 40, ApproxTokenizer{})
 	if u.OutputTokens > 40 {
 		t.Fatalf("%#v %#v", r, u)
+	}
+}
+
+func TestUnsafeURLRejected(t *testing.T) {
+	if got := canonicalURL("javascript:alert(1)"); got != "" {
+		t.Fatalf("got %q", got)
+	}
+}
+func TestGlobalDedup(t *testing.T) {
+	got := dedupeResults([]SearchResult{{URL: "https://e.test"}, {URL: "https://e.test"}, {URL: "https://two.test"}})
+	if len(got) != 2 {
+		t.Fatalf("%#v", got)
+	}
+}
+
+func TestTinyBudgetRejected(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "a"}}, nil)
+	if _, err := s.Search(context.Background(), SearchRequest{Query: "q", MaxTokens: 1}); err == nil {
+		t.Fatal("expected tiny budget error")
 	}
 }

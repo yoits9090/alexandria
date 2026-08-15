@@ -58,8 +58,11 @@ func main() {
 	}
 	addr := env("ALEXANDRIA_ADDR", ":8080")
 	apiKey := os.Getenv("ALEXANDRIA_API_KEY")
-	log.Printf("alexandria listening on %s (providers=%s, api_auth=%t)", addr, strings.Join(svc.ProviderNames(), ","), apiKey != "")
-	if err := http.ListenAndServe(addr, search.HandlerWithAPIKey(svc, apiKey)); err != nil {
+	rateLimit := envInt("ALEXANDRIA_RATE_LIMIT", 0)
+	limiter := search.NewRateLimiter(rateLimit, time.Minute)
+	log.Printf("alexandria listening on %s (providers=%s, api_auth=%t, rate_limit=%d/min)", addr, strings.Join(svc.ProviderNames(), ","), apiKey != "", rateLimit)
+	server := &http.Server{Addr: addr, Handler: search.HandlerWithOptions(svc, apiKey, limiter), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
 }

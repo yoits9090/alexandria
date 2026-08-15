@@ -76,6 +76,8 @@ type ProviderPage struct {
 
 type Capabilities struct {
 	Freshness, Domains, Language, Region, SafeSearch, SearchDepth bool
+	FreshnessValues                                               map[string]bool
+	SearchDepthValues                                             map[string]bool
 }
 
 type Provider interface {

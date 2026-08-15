@@ -45,11 +45,33 @@ func newHTTPProvider(name, baseURL, key string, client *http.Client) *HTTPProvid
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}
 	}
-	return &HTTPProvider{name: name, baseURL: baseURL, key: key, client: client}
+	// Do not inherit a caller's permissive redirect policy: provider requests
+	// can carry credentials in headers or (Google CSE) the query string.
+	copy := *client
+	copy.CheckRedirect = rejectCrossOriginRedirect
+	return &HTTPProvider{name: name, baseURL: baseURL, key: key, client: &copy}
 }
+
+func rejectCrossOriginRedirect(req *http.Request, via []*http.Request) error {
+	// Provider URLs can contain credentials (Google CSE) or carry them in
+	// headers. Do not follow any redirect; callers receive the redirect status
+	// as a provider failure rather than forwarding secrets elsewhere.
+	return http.ErrUseLastResponse
+}
+
 func (p *HTTPProvider) Name() string { return p.name }
 func (p *HTTPProvider) Capabilities() Capabilities {
-	return Capabilities{Freshness: p.name != "exa" && p.name != "google", Domains: p.name == "tavily" || p.name == "exa", Language: true, Region: p.name != "tavily" && p.name != "exa", SafeSearch: p.name == "brave" || p.name == "bing" || p.name == "google" || p.name == "searx", SearchDepth: p.name == "tavily" || p.name == "exa"}
+	caps := Capabilities{Freshness: p.name != "exa", Domains: p.name == "tavily" || p.name == "exa", Language: p.name != "tavily" && p.name != "exa", Region: p.name != "searx", SafeSearch: p.name == "brave" || p.name == "tavily" || p.name == "bing" || p.name == "google" || p.name == "searx", SearchDepth: p.name == "tavily" || p.name == "exa"}
+	if p.name == "searx" {
+		caps.FreshnessValues = map[string]bool{"pd": true, "day": true, "d": true, "pm": true, "month": true, "m": true, "py": true, "year": true, "y": true}
+	}
+	if p.name == "tavily" {
+		caps.SearchDepthValues = map[string]bool{"basic": true, "advanced": true, "fast": true, "deep": true, "deep-reasoning": true}
+	}
+	if p.name == "exa" {
+		caps.SearchDepthValues = map[string]bool{"auto": true, "fast": true, "instant": true, "deep-lite": true, "deep": true, "deep-reasoning": true}
+	}
+	return caps
 }
 func (p *HTTPProvider) Search(ctx context.Context, q ProviderQuery) (ProviderPage, error) {
 	if p.name != "searx" && p.key == "" {
@@ -81,9 +103,9 @@ func (p *HTTPProvider) brave(ctx context.Context, q ProviderQuery) (ProviderPage
 	}
 	v := u.Query()
 	v.Set("q", q.Query)
-	v.Set("count", strconv.Itoa(q.Count))
-	if q.Freshness != "" {
-		v.Set("freshness", q.Freshness)
+	v.Set("count", strconv.Itoa(clampCount(q.Count, 20)))
+	if freshness := braveFreshness(q.Freshness); freshness != "" {
+		v.Set("freshness", freshness)
 	}
 	if q.Language != "" {
 		v.Set("search_lang", q.Language)
@@ -128,11 +150,20 @@ type braveResponse struct {
 }
 
 func (p *HTTPProvider) tavily(ctx context.Context, q ProviderQuery) (ProviderPage, error) {
-	depth := q.SearchDepth
+	depth := tavilyDepth(q.SearchDepth)
 	if depth == "" {
 		depth = "basic"
 	}
-	payload := map[string]any{"api_key": p.key, "query": q.Query, "max_results": q.Count, "include_answer": false, "search_depth": depth}
+	payload := map[string]any{"query": q.Query, "max_results": clampCount(q.Count, 20), "include_answer": false, "search_depth": depth}
+	if freshness := tavilyFreshness(q.Freshness); freshness != "" {
+		payload["time_range"] = freshness
+	}
+	if q.Region != "" {
+		payload["country"] = q.Region
+	}
+	if q.SafeSearch != nil {
+		payload["safe_search"] = *q.SafeSearch
+	}
 	if len(q.IncludeDomains) > 0 {
 		payload["include_domains"] = q.IncludeDomains
 	}
@@ -146,6 +177,7 @@ func (p *HTTPProvider) tavily(ctx context.Context, q ProviderQuery) (ProviderPag
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+p.key)
 	var body tavilyResponse
 	if err := p.do(req, &body); err != nil {
 		return ProviderPage{}, err
@@ -182,8 +214,8 @@ func (p *HTTPProvider) searx(ctx context.Context, q ProviderQuery) (ProviderPage
 	if q.Language != "" {
 		v.Set("language", q.Language)
 	}
-	if q.Freshness != "" {
-		v.Set("time_range", q.Freshness)
+	if freshness := searxFreshness(q.Freshness); freshness != "" {
+		v.Set("time_range", freshness)
 	}
 	if q.SafeSearch != nil {
 		if *q.SafeSearch {
@@ -220,12 +252,15 @@ type searxResponse struct {
 }
 
 func (p *HTTPProvider) serper(ctx context.Context, q ProviderQuery) (ProviderPage, error) {
-	payload := map[string]any{"q": q.Query, "num": q.Count}
+	payload := map[string]any{"q": q.Query, "num": clampCount(q.Count, 100)}
 	if q.Language != "" {
 		payload["hl"] = q.Language
 	}
 	if q.Region != "" {
 		payload["gl"] = q.Region
+	}
+	if v := googleFreshness(q.Freshness); v != "" {
+		payload["tbs"] = v
 	}
 	b, _ := json.Marshal(payload)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL, bytes.NewReader(b))
@@ -255,9 +290,14 @@ type serperResponse struct {
 }
 
 func (p *HTTPProvider) exa(ctx context.Context, q ProviderQuery) (ProviderPage, error) {
-	payload := map[string]any{"query": q.Query, "numResults": q.Count, "contents": map[string]any{"highlights": map[string]any{"maxCharacters": 600}}}
-	if q.SearchDepth == "deep" {
-		payload["type"] = "deep"
+	payload := map[string]any{"query": q.Query, "numResults": clampCount(q.Count, 100), "contents": map[string]any{"highlights": map[string]any{"maxCharacters": 600}}}
+	if q.SearchDepth != "" {
+		if depth := exaDepth(q.SearchDepth); depth != "" {
+			payload["type"] = depth
+		}
+	}
+	if q.Region != "" {
+		payload["userLocation"] = q.Region
 	}
 	if len(q.IncludeDomains) > 0 {
 		payload["includeDomains"] = q.IncludeDomains
@@ -304,12 +344,14 @@ func (p *HTTPProvider) bing(ctx context.Context, q ProviderQuery) (ProviderPage,
 	}
 	v := u.Query()
 	v.Set("q", q.Query)
-	v.Set("count", strconv.Itoa(q.Count))
-	if q.Language != "" {
-		v.Set("mkt", q.Language)
+	v.Set("count", strconv.Itoa(clampCount(q.Count, 50)))
+	if market := bingMarket(q.Language, q.Region); market != "" {
+		v.Set("mkt", market)
+	} else if q.Region != "" {
+		v.Set("cc", q.Region)
 	}
-	if q.Freshness != "" {
-		v.Set("freshness", q.Freshness)
+	if freshness := bingFreshness(q.Freshness); freshness != "" {
+		v.Set("freshness", freshness)
 	}
 	if q.SafeSearch != nil {
 		if *q.SafeSearch {
@@ -366,6 +408,9 @@ func (p *HTTPProvider) google(ctx context.Context, q ProviderQuery) (ProviderPag
 	if q.SafeSearch != nil {
 		v.Set("safe", map[bool]string{true: "active", false: "off"}[*q.SafeSearch])
 	}
+	if freshness := googleDateRestrict(q.Freshness); freshness != "" {
+		v.Set("dateRestrict", freshness)
+	}
 	u.RawQuery = v.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
@@ -391,6 +436,125 @@ type googleResponse struct {
 	} `json:"items"`
 }
 
+func braveFreshness(v string) string {
+	switch strings.ToLower(v) {
+	case "pd", "day", "d":
+		return "pd"
+	case "pw", "week", "w":
+		return "pw"
+	case "pm", "month", "m":
+		return "pm"
+	case "py", "year", "y":
+		return "py"
+	}
+	return ""
+}
+
+func tavilyDepth(v string) string {
+	switch strings.ToLower(v) {
+	case "basic", "advanced", "fast":
+		return strings.ToLower(v)
+	case "deep", "deep-reasoning":
+		return "advanced"
+	}
+	return ""
+}
+func searxFreshness(v string) string {
+	switch strings.ToLower(v) {
+	case "pd", "day", "d":
+		return "day"
+	case "pm", "month", "m":
+		return "month"
+	case "py", "year", "y":
+		return "year"
+	}
+	return ""
+}
+
+func exaDepth(v string) string {
+	switch strings.ToLower(v) {
+	case "auto", "fast", "instant", "deep-lite", "deep", "deep-reasoning":
+		return strings.ToLower(v)
+	}
+	return ""
+}
+
+func clampCount(n, max int) int {
+	if n < 1 {
+		return 1
+	}
+	if max > 0 && n > max {
+		return max
+	}
+	return n
+}
+func tavilyFreshness(v string) string {
+	switch strings.ToLower(v) {
+	case "pd", "day", "d":
+		return "day"
+	case "pw", "week", "w":
+		return "week"
+	case "pm", "month", "m":
+		return "month"
+	case "py", "year", "y":
+		return "year"
+	}
+	return ""
+}
+func googleDateRestrict(v string) string {
+	switch strings.ToLower(v) {
+	case "pd", "day", "d":
+		return "d1"
+	case "pw", "week", "w":
+		return "w1"
+	case "pm", "month", "m":
+		return "m1"
+	case "py", "year", "y":
+		return "y1"
+	}
+	return ""
+}
+
+func googleFreshness(v string) string {
+	switch strings.ToLower(v) {
+	case "pd", "day", "d":
+		return "qdr:d"
+	case "pw", "week", "w":
+		return "qdr:w"
+	case "pm", "month", "m":
+		return "qdr:m"
+	case "py", "year", "y":
+		return "qdr:y"
+	}
+	return ""
+}
+func bingMarket(language, region string) string {
+	language = strings.TrimSpace(language)
+	region = strings.TrimSpace(region)
+	if language == "" {
+		return ""
+	}
+	if strings.Contains(language, "-") {
+		return language
+	}
+	if region != "" {
+		return language + "-" + region
+	}
+	return ""
+}
+
+func bingFreshness(v string) string {
+	switch strings.ToLower(v) {
+	case "pd", "day", "d":
+		return "Day"
+	case "pw", "week", "w":
+		return "Week"
+	case "pm", "month", "m":
+		return "Month"
+	}
+	return ""
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -401,9 +565,22 @@ func min(a, b int) int {
 func (p *HTTPProvider) do(req *http.Request, dst any) error {
 	var last error
 	for attempt := 0; attempt < 3; attempt++ {
-		resp, err := p.client.Do(req)
+		attemptReq := req.Clone(req.Context())
+		if req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return fmt.Errorf("%s request body unavailable", p.name)
+			}
+			attemptReq.Body = body
+		} else if req.Body != nil {
+			if attempt > 0 {
+				return fmt.Errorf("%s request body unavailable", p.name)
+			}
+			attemptReq.Body = req.Body
+		}
+		resp, err := p.client.Do(attemptReq)
 		if err != nil {
-			last = err
+			last = fmt.Errorf("%s request failed", p.name)
 			if req.Context().Err() != nil {
 				return req.Context().Err()
 			}
@@ -421,7 +598,9 @@ func (p *HTTPProvider) do(req *http.Request, dst any) error {
 			}
 			return nil
 		}
-		last = fmt.Errorf("%s returned %d: %s", p.name, resp.StatusCode, bytes.TrimSpace(body))
+		// Do not expose provider response bodies: they may contain echoed
+		// credentials, query text, or infrastructure details.
+		last = fmt.Errorf("%s returned HTTP %d", p.name, resp.StatusCode)
 		if resp.StatusCode != http.StatusTooManyRequests && resp.StatusCode < 500 {
 			break
 		}

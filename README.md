@@ -2,7 +2,7 @@
 
 Alexandria is a Go search gateway for LLM applications—the renewal of `ugpt-search` with a provider-neutral API, broad search-provider compatibility, and an explicit token budget. It returns compact, normalized snippets rather than forcing every agent to pay for raw provider payloads.
 
-> Early MVP: Brave Web Search, Tavily, SearXNG, Serper, Exa, Bing, and Google Custom Search adapters are included behind one provider interface.
+> Early MVP: Brave Web Search, Tavily, SearXNG, Serper, Exa, and Google Custom Search adapters are included behind one provider interface. The Bing adapter is retained as a legacy compatibility path because the public Bing Search APIs were retired in 2025.
 
 ## Why Alexandria
 
@@ -45,9 +45,9 @@ A provider failure does not discard successful results; HTTP 502 is returned onl
 - Brave: `BRAVE_SEARCH_API_KEY` and optional `BRAVE_SEARCH_URL`.
 - Tavily: `TAVILY_API_KEY` and optional `TAVILY_SEARCH_URL`.
 - SearXNG: `SEARX_URL` pointing at a trusted instance (for example `https://search.example/search` or its base URL).
-- Serper, Exa, Bing, Google CSE: set the corresponding API key variables in `.env.example`; Google also needs `GOOGLE_CSE_ID`.
+- Serper, Exa, and Google CSE: set the corresponding API key variables in `.env.example`; Google also needs `GOOGLE_CSE_ID`. Bing is legacy-only and should not be selected for new deployments.
 
-Set `ALEXANDRIA_API_KEY` to protect `/v1/search`, `/search`, and `/api/search`. Clients may send `Authorization: Bearer <key>` or `X-API-Key: <key>`; `/healthz`, `/readyz`, and `/openapi.json` stay public for probes. The server never logs keys. For production, put it behind TLS and use a secrets manager. Provider costs and LLM token costs are intentionally separate; future policy can select providers by latency, freshness, and dollar budget.
+Set `ALEXANDRIA_API_KEY` to protect `/v1/search`, `/search`, and `/api/search`. Clients may send `Authorization: Bearer <key>` or `X-API-Key: <key>`; `/healthz`, `/readyz`, and `/openapi.json` stay public for probes. Set `ALEXANDRIA_RATE_LIMIT` to a positive requests-per-minute value for an in-process per-client limit; `0` disables it. The limiter keys by direct peer IP and is process-local, so configure shared edge controls for multi-instance deployments. The server never logs keys. For production, put it behind TLS and use a secrets manager. Provider costs and LLM token costs are intentionally separate; future policy can select providers by latency, freshness, and dollar budget.
 
 ## LLM smoke harness
 
@@ -73,7 +73,7 @@ For a one-shot job that always cleans up, use `colab --auth=adc run tools/colab_
 
 ## Roadmap
 
-1. Add provider circuit breakers, caching, API-key auth, and rate limits.
+1. Add provider circuit breakers and caching.
 2. Add optional page extraction with a separate budget and explicit opt-in; snippets remain the cheap default.
 3. Add exact tokenizer plugins and model-specific serialization budgets.
 4. Add evaluation fixtures measuring answer quality per token and provider cost/latency.

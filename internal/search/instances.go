@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -45,7 +47,7 @@ func DiscoverSearX(ctx context.Context, registryURL string, limit int, client *h
 			} `json:"http"`
 		} `json:"instances"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&raw); err != nil {
 		return nil, err
 	}
 	hosts := make([]string, 0, len(raw.Instances))
@@ -62,10 +64,11 @@ func DiscoverSearX(ctx context.Context, registryURL string, limit int, client *h
 			continue
 		}
 		host = strings.TrimRight(host, "/")
-		if !strings.HasPrefix(host, "https://") {
-			continue // do not send search queries to plaintext public instances
+		u, err := url.Parse(host)
+		if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+			continue
 		}
-		hosts = append(hosts, host)
+		hosts = append(hosts, u.String())
 	}
 	sort.Strings(hosts)
 	if limit > 0 && len(hosts) > limit {
