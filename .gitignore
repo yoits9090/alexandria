@@ -8,3 +8,6 @@
 /bin/
 /dist/
 coverage.out
+
+# local cross-compiled smoke binaries
+*.linux-*
