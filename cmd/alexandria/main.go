@@ -1,13 +1,18 @@
 package main
 
 import (
-	"github.com/yoits9090/alexandria/internal/search"
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
+
+	"github.com/yoits9090/alexandria/internal/search"
 )
 
 func main() {
@@ -69,9 +74,21 @@ func main() {
 	limiter := search.NewRateLimiter(rateLimit, time.Minute)
 	log.Printf("alexandria listening on %s (providers=%s, api_auth=%t, rate_limit=%d/min)", addr, strings.Join(svc.ProviderNames(), ","), apiKey != "", rateLimit)
 	server := &http.Server{Addr: addr, Handler: search.HandlerWithOptions(svc, apiKey, limiter), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		log.Println("shutting down")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("shutdown: %v", err)
+		}
+	}()
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+	log.Println("alexandria stopped")
 }
 func env(k, d string) string {
 	if v := os.Getenv(k); v != "" {

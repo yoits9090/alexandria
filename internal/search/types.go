@@ -71,8 +71,7 @@ type ProviderResult struct {
 }
 
 type ProviderPage struct {
-	Results   []ProviderResult
-	RequestID string
+	Results []ProviderResult
 }
 
 type Capabilities struct {

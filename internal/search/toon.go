@@ -10,10 +10,6 @@ import (
 // EncodeTOON emits the compact, LLM-facing search projection. Results are a
 // fixed-shape table so optional provider metadata never forces TOON list form;
 // row IDs are explicit and stable for citations.
-type TOONResponse struct {
-	Query   string
-	Results []TOONResult
-}
 type TOONResult struct {
 	ID      int
 	Title   string

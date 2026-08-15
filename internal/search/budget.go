@@ -91,9 +91,3 @@ func pack(results []SearchResult, maxTokens int, tok TokenEstimator) ([]SearchRe
 	return packed, Usage{OutputTokens: used, TotalTokens: used, MaxTokens: maxTokens, Truncated: truncated, Estimated: true}
 }
 func mustJSON(v any) string { b, _ := json.Marshal(v); return string(b) }
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

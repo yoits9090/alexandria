@@ -51,36 +51,36 @@ func (s *Service) ProviderNames() []string {
 func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse, error) {
 	query := strings.TrimSpace(req.Query)
 	if query == "" {
-		return SearchResponse{}, fmt.Errorf("query is required")
+		return SearchResponse{}, fmt.Errorf("%w: query is required", ErrBadRequest)
 	}
 	if req.MaxResults < 0 || req.MaxTokens < 0 {
-		return SearchResponse{}, fmt.Errorf("max_results and max_tokens must be non-negative")
+		return SearchResponse{}, fmt.Errorf("%w: max_results and max_tokens must be non-negative", ErrBadRequest)
 	}
 	if req.Content != "" && req.Content != "snippets" {
-		return SearchResponse{}, fmt.Errorf("content must be snippets")
+		return SearchResponse{}, fmt.Errorf("%w: content must be snippets", ErrBadRequest)
 	}
 	if req.Freshness != "" && !validFreshness(req.Freshness) {
-		return SearchResponse{}, fmt.Errorf("freshness must be day, week, month, or year")
+		return SearchResponse{}, fmt.Errorf("%w: freshness must be day, week, month, or year", ErrBadRequest)
 	}
 	if req.SearchDepth != "" && !validSearchDepth(req.SearchDepth) {
-		return SearchResponse{}, fmt.Errorf("search_depth is unsupported")
+		return SearchResponse{}, fmt.Errorf("%w: search_depth is unsupported", ErrBadRequest)
 	}
 	names := uniqueNames(req.Providers)
 	if len(names) == 0 {
 		names = append([]string(nil), s.defaultProviders...)
 	}
 	if len(names) > 16 {
-		return SearchResponse{}, fmt.Errorf("too many providers (maximum 16)")
+		return SearchResponse{}, fmt.Errorf("%w: too many providers (maximum 16)", ErrBadRequest)
 	}
 	if len(names) == 0 {
-		return SearchResponse{}, fmt.Errorf("no search providers configured")
+		return SearchResponse{}, fmt.Errorf("%w: no search providers configured", ErrBadRequest)
 	}
 	maxR := req.MaxResults
 	if maxR == 0 {
 		maxR = s.MaxResults
 	}
 	if maxR <= 0 {
-		return SearchResponse{}, fmt.Errorf("max_results must be positive")
+		return SearchResponse{}, fmt.Errorf("%w: max_results must be positive", ErrBadRequest)
 	}
 	if s.MaxResults > 0 && maxR > s.MaxResults {
 		maxR = s.MaxResults
@@ -93,7 +93,7 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 		maxT = s.MaxTokens
 	}
 	if maxT <= 0 {
-		return SearchResponse{}, fmt.Errorf("max_tokens must be positive")
+		return SearchResponse{}, fmt.Errorf("%w: max_tokens must be positive", ErrBadRequest)
 	}
 	count := maxR
 	if count > int(^uint(0)>>1)/2 {
@@ -113,32 +113,32 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 	for _, name := range names {
 		p, ok := s.providers[name]
 		if !ok {
-			return SearchResponse{}, fmt.Errorf("unknown provider %q", name)
+			return SearchResponse{}, fmt.Errorf("%w: unknown provider %q", ErrBadRequest, name)
 		}
 		caps := p.Capabilities()
 		if req.Freshness != "" && !caps.Freshness {
-			return SearchResponse{}, fmt.Errorf("provider %q does not support freshness", name)
+			return SearchResponse{}, fmt.Errorf("%w: provider %q does not support freshness", ErrBadRequest, name)
 		}
 		if req.Freshness != "" && caps.FreshnessValues != nil && !caps.FreshnessValues[strings.ToLower(req.Freshness)] {
-			return SearchResponse{}, fmt.Errorf("provider %q does not support freshness value %q", name, req.Freshness)
+			return SearchResponse{}, fmt.Errorf("%w: provider %q does not support freshness value %q", ErrBadRequest, name, req.Freshness)
 		}
 		if (len(req.IncludeDomains) > 0 || len(req.ExcludeDomains) > 0) && !caps.Domains {
-			return SearchResponse{}, fmt.Errorf("provider %q does not support domains", name)
+			return SearchResponse{}, fmt.Errorf("%w: provider %q does not support domains", ErrBadRequest, name)
 		}
 		if req.Language != "" && !caps.Language {
-			return SearchResponse{}, fmt.Errorf("provider %q does not support language", name)
+			return SearchResponse{}, fmt.Errorf("%w: provider %q does not support language", ErrBadRequest, name)
 		}
 		if req.Region != "" && !caps.Region {
-			return SearchResponse{}, fmt.Errorf("provider %q does not support region", name)
+			return SearchResponse{}, fmt.Errorf("%w: provider %q does not support region", ErrBadRequest, name)
 		}
 		if req.SafeSearch != nil && !caps.SafeSearch {
-			return SearchResponse{}, fmt.Errorf("provider %q does not support safe_search", name)
+			return SearchResponse{}, fmt.Errorf("%w: provider %q does not support safe_search", ErrBadRequest, name)
 		}
 		if req.SearchDepth != "" && !caps.SearchDepth {
-			return SearchResponse{}, fmt.Errorf("provider %q does not support search_depth", name)
+			return SearchResponse{}, fmt.Errorf("%w: provider %q does not support search_depth", ErrBadRequest, name)
 		}
 		if req.SearchDepth != "" && caps.SearchDepthValues != nil && !caps.SearchDepthValues[strings.ToLower(req.SearchDepth)] {
-			return SearchResponse{}, fmt.Errorf("provider %q does not support search_depth value %q", name, req.SearchDepth)
+			return SearchResponse{}, fmt.Errorf("%w: provider %q does not support search_depth value %q", ErrBadRequest, name, req.SearchDepth)
 		}
 		selected = append(selected, p)
 	}
@@ -189,7 +189,7 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 		return SearchResponse{Query: query, Providers: statuses, Usage: Usage{MaxTokens: maxT}}, context.DeadlineExceeded
 	}
 	if success == 0 {
-		return SearchResponse{Query: query, Providers: statuses, Usage: Usage{MaxTokens: maxT}}, fmt.Errorf("all providers failed")
+		return SearchResponse{Query: query, Providers: statuses, Usage: Usage{MaxTokens: maxT}}, ErrAllProvidersFailed
 	}
 	// Rank deterministically before deduplication so provider completion order
 	// cannot choose the winning duplicate.
@@ -306,12 +306,12 @@ func HandlerWithOptions(s *Service, apiKey string, limiter *RateLimiter) http.Ha
 			}
 			if count, present := values["count"]; present {
 				if len(count) != 1 {
-					writeError(w, 400, "count must appear once")
+					writeError(w, http.StatusBadRequest, "count must appear once")
 					return
 				}
 				maxResults, err = parseNonNegative(count[0], "count")
 				if err != nil {
-					writeError(w, 400, err.Error())
+					writeError(w, http.StatusBadRequest, err.Error())
 					return
 				}
 			}
@@ -382,6 +382,9 @@ func HandlerWithOptions(s *Service, apiKey string, limiter *RateLimiter) http.Ha
 		format := strings.ToLower(strings.TrimSpace(req.Format))
 		if format == "" {
 			format = negotiatedFormat(r)
+			if r.URL.Path != "/api/search" {
+				w.Header().Add("Vary", "Accept")
+			}
 		}
 		if r.URL.Path == "/api/search" {
 			format = "json"
@@ -456,14 +459,6 @@ func optionalInt(values url.Values, name string) (int, error) {
 	}
 	return parseNonNegative(raw[0], name)
 }
-
-func atoiPositive(v string, fallback int) int {
-	n, err := strconv.Atoi(v)
-	if err != nil || n <= 0 {
-		return fallback
-	}
-	return n
-}
 func writeFormat(w http.ResponseWriter, format string, resp SearchResponse) {
 	switch strings.ToLower(format) {
 	case "json":
@@ -484,10 +479,11 @@ func writeFormat(w http.ResponseWriter, format string, resp SearchResponse) {
 		}
 	case "html":
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, "<!doctype html><meta charset=utf-8><title>Alexandria search</title>")
+		fmt.Fprint(w, "<!doctype html><meta charset=utf-8><title>Alexandria search</title><body>")
 		for _, r := range resp.Results {
 			fmt.Fprintf(w, "<article><h2><a href=\"%s\">%s</a></h2><p>%s</p></article>", html.EscapeString(r.URL), html.EscapeString(r.Title), html.EscapeString(r.Snippet))
 		}
+		fmt.Fprint(w, "</body>")
 	default:
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "format must be json, text, html, or toon"})
 	}

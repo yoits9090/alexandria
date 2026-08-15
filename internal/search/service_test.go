@@ -129,6 +129,9 @@ func TestRateLimit(t *testing.T) {
 		if rr.Code != 200 {
 			t.Fatalf("request %d: %d", i, rr.Code)
 		}
+		if rr.Header().Get("X-RateLimit-Limit") != "2" || rr.Header().Get("X-RateLimit-Remaining") != strconv.Itoa(1-i) {
+			t.Fatalf("request %d headers: %v", i, rr.Header())
+		}
 	}
 	req := httptest.NewRequest("GET", "/v1/search?q=q", nil)
 	req.RemoteAddr = "192.0.2.1:1234"
@@ -249,5 +252,99 @@ func TestPostTOONAndNegotiation(t *testing.T) {
 		if rr.Code != 200 || !strings.HasPrefix(rr.Header().Get("Content-Type"), tc.typ) {
 			t.Fatalf("%s: %d %s", tc.body, rr.Code, rr.Body.String())
 		}
+	}
+}
+
+func TestHandlerGETValidation(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "a", page: ProviderPage{Results: []ProviderResult{{Title: "T", URL: "https://e.test"}}}}}, nil)
+	cases := []struct {
+		path string
+		code int
+	}{
+		{"/v1/search", 400},                        // missing query
+		{"/v1/search?q=q&max_results=abc", 400},    // non-integer
+		{"/v1/search?q=q&limit=1&limit=2", 400},    // duplicate limit
+		{"/v1/search?q=q&count=1&count=2", 400},    // duplicate count
+		{"/v1/search?q=q&safe_search=banana", 400}, // invalid boolean
+		{"/v1/search?q=q&format=banana", 400},      // unknown format
+		{"/v1/search?q=q&providers=nope", 400},     // unknown provider
+		{"/v1/search?q=q", 200},
+		{"/v1/search?q=q&limit=3", 200},
+	}
+	for _, tc := range cases {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", tc.path, nil)
+		Handler(s).ServeHTTP(rr, req)
+		if rr.Code != tc.code {
+			t.Fatalf("%s: got %d body=%s", tc.path, rr.Code, rr.Body.String())
+		}
+	}
+}
+
+func TestHandlerAllFailedReturns502EmptyResults(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "a", err: errors.New("down")}}, nil)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/v1/search?q=q&format=json", nil)
+	Handler(s).ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadGateway || !strings.Contains(rr.Body.String(), `"results":[]`) {
+		t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestHandlerAllTimeoutReturns504(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "slow", delay: 50 * time.Millisecond}}, nil)
+	s.Timeout = 5 * time.Millisecond
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/v1/search?q=q&format=json", nil)
+	Handler(s).ServeHTTP(rr, req)
+	if rr.Code != http.StatusGatewayTimeout {
+		t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestRespondSearchClientCancel(t *testing.T) {
+	rr := httptest.NewRecorder()
+	respondSearch(rr, SearchResponse{Query: "q"}, context.Canceled)
+	if rr.Code != statusClientClosedRequest {
+		t.Fatalf("code=%d", rr.Code)
+	}
+}
+
+func TestPostNegotiationVary(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "a", page: ProviderPage{Results: []ProviderResult{{Title: "T", URL: "https://e.test"}}}}}, nil)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/v1/search", strings.NewReader(`{"query":"q"}`))
+	req.Header.Set("Accept", "application/json")
+	Handler(s).ServeHTTP(rr, req)
+	if rr.Code != 200 || !strings.HasPrefix(rr.Header().Get("Content-Type"), "application/json") {
+		t.Fatalf("code=%d type=%q", rr.Code, rr.Header().Get("Content-Type"))
+	}
+	if !strings.Contains(rr.Header().Get("Vary"), "Accept") {
+		t.Fatalf("missing Vary: Accept: %v", rr.Header())
+	}
+}
+
+func TestRateLimiterWindowResetAndPrune(t *testing.T) {
+	now := time.Now()
+	l := NewRateLimiter(2, time.Minute)
+	for i := 0; i < 2; i++ {
+		if ok, _, _ := l.Allow("k", now); !ok {
+			t.Fatalf("request %d should be allowed", i)
+		}
+	}
+	if ok, _, wait := l.Allow("k", now); ok || wait <= 0 {
+		t.Fatalf("expected limit: ok=%v wait=%v", ok, wait)
+	}
+	if ok, _, _ := l.Allow("k", now.Add(61*time.Second)); !ok {
+		t.Fatal("window should reset after a minute")
+	}
+	// Prune drops expired entries and excess keys.
+	l.maxKeys = 2
+	l.Allow("a", now)
+	l.Allow("b", now)
+	l.Allow("c", now)
+	l.pruneLocked(now)
+	if len(l.clients) > l.maxKeys {
+		t.Fatalf("prune left %d keys", len(l.clients))
 	}
 }

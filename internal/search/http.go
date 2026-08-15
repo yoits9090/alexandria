@@ -38,27 +38,38 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]any{"error": message, "request_id": w.Header().Get("X-Request-ID")})
 }
+
+// statusClientClosedRequest is the conventional status for a client that
+// closed the connection before the response completed (used by nginx, HAProxy,
+// and common gateway tooling).
+const statusClientClosedRequest = 499
+
 func respondSearch(w http.ResponseWriter, resp SearchResponse, err error) {
 	if resp.RequestID == "" {
 		resp.RequestID = w.Header().Get("X-Request-ID")
 	}
 	if err != nil {
+		// Error bodies should still carry stable shapes for LLM clients.
+		if resp.Results == nil {
+			resp.Results = []SearchResult{}
+		}
+		if resp.Providers == nil {
+			resp.Providers = []ProviderStatus{}
+		}
 		status := http.StatusBadGateway
-		if errors.Is(err, context.DeadlineExceeded) {
-			status = http.StatusGatewayTimeout
-		}
-		message := err.Error()
-		if strings.HasPrefix(message, "query is required") || strings.HasPrefix(message, "max_results") || strings.HasPrefix(message, "max_tokens") || strings.HasPrefix(message, "unknown provider") || strings.HasPrefix(message, "no search providers") || strings.HasPrefix(message, "too many providers") || strings.HasPrefix(message, "content must") || strings.HasPrefix(message, "format must") || strings.HasPrefix(message, "freshness must") || strings.HasPrefix(message, "search_depth") || strings.HasPrefix(message, "content must") || strings.Contains(message, "does not support") {
+		switch {
+		case errors.Is(err, ErrBadRequest):
 			status = http.StatusBadRequest
-		}
-		if resp.Query != "" {
-			resp.Usage.Truncated = true
+		case errors.Is(err, context.DeadlineExceeded):
+			status = http.StatusGatewayTimeout
+		case errors.Is(err, context.Canceled):
+			status = statusClientClosedRequest
 		}
 		if status == http.StatusBadRequest {
 			writeError(w, status, err.Error())
-		} else {
-			writeJSON(w, status, resp)
+			return
 		}
+		writeJSON(w, status, resp)
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)

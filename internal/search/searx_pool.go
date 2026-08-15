@@ -185,7 +185,14 @@ func (p *SearXPool) mark(idx int, ok bool) {
 }
 func (p *SearXPool) Search(ctx context.Context, q ProviderQuery) (ProviderPage, error) {
 	if err := p.ensure(ctx); err != nil {
-		return ProviderPage{}, fmt.Errorf("searx discovery: %w", err)
+		// A stale refresh must not take down searches: fall back to the
+		// previously discovered nodes until the registry recovers.
+		p.mu.Lock()
+		haveNodes := len(p.nodes) > 0
+		p.mu.Unlock()
+		if !haveNodes {
+			return ProviderPage{}, fmt.Errorf("searx discovery: %w", err)
+		}
 	}
 	p.mu.Lock()
 	count := len(p.nodes)
