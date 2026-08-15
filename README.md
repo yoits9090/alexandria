@@ -47,7 +47,7 @@ A provider failure does not discard successful results; HTTP 502 is returned onl
 - SearXNG: `SEARX_URL` pointing at a trusted instance (for example `https://search.example/search` or its base URL).
 - Serper, Exa, Bing, Google CSE: set the corresponding API key variables in `.env.example`; Google also needs `GOOGLE_CSE_ID`.
 
-The server never logs keys. For production, put it behind TLS/auth/rate limiting and use a secrets manager. Provider costs and LLM token costs are intentionally separate; future policy can select providers by latency, freshness, and dollar budget.
+Set `ALEXANDRIA_API_KEY` to protect `/v1/search`, `/search`, and `/api/search`. Clients may send `Authorization: Bearer <key>` or `X-API-Key: <key>`; `/healthz`, `/readyz`, and `/openapi.json` stay public for probes. The server never logs keys. For production, put it behind TLS and use a secrets manager. Provider costs and LLM token costs are intentionally separate; future policy can select providers by latency, freshness, and dollar budget.
 
 ## LLM smoke harness
 

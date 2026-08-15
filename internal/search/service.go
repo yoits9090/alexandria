@@ -151,6 +151,12 @@ func redactError(err error) string {
 }
 
 func Handler(s *Service) http.Handler {
+	return HandlerWithAPIKey(s, "")
+}
+
+// HandlerWithAPIKey constructs the gateway handler. The API key applies only
+// to search routes; operational endpoints stay available to probes.
+func HandlerWithAPIKey(s *Service, apiKey string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -195,10 +201,11 @@ func Handler(s *Service) http.Handler {
 		resp, err := s.Search(r.Context(), req)
 		respondSearch(w, resp, err)
 	}
-	mux.HandleFunc("/v1/search", searchEndpoint)
+	protectedSearch := APIKeyAuth(http.HandlerFunc(searchEndpoint), apiKey)
+	mux.Handle("/v1/search", protectedSearch)
 	// Compatibility aliases for the former ugpt-search/SearX-style clients.
-	mux.HandleFunc("/search", searchEndpoint)
-	mux.HandleFunc("/api/search", searchEndpoint)
+	mux.Handle("/search", protectedSearch)
+	mux.Handle("/api/search", protectedSearch)
 	return requestID(mux)
 }
 

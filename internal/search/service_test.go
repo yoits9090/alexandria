@@ -3,6 +3,7 @@ package search
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -70,5 +71,47 @@ func TestHandler(t *testing.T) {
 	}
 	if rr.Header().Get("X-Request-ID") == "" {
 		t.Fatal("request id missing")
+	}
+}
+
+func TestAPIKeyAuth(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "a", page: ProviderPage{Results: []ProviderResult{{Title: "T", URL: "https://example.com"}}}}}, nil)
+	h := HandlerWithAPIKey(s, "correct-secret")
+	for _, tc := range []struct {
+		name, auth, apiKey string
+		code               int
+	}{
+		{"missing", "", "", 401}, {"wrong", "Bearer wrong", "", 401}, {"malformed", "Basic correct-secret", "", 401}, {"bearer", "bearer correct-secret", "", 200}, {"header", "", "correct-secret", 200},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/v1/search", strings.NewReader(`{"query":"q"}`))
+			if tc.auth != "" {
+				req.Header.Set("Authorization", tc.auth)
+			}
+			if tc.apiKey != "" {
+				req.Header.Set("X-API-Key", tc.apiKey)
+			}
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+			if rr.Code != tc.code {
+				t.Fatalf("got %d body=%s", rr.Code, rr.Body.String())
+			}
+		})
+	}
+	req := httptest.NewRequest("GET", "/healthz", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != 200 {
+		t.Fatalf("health should be public: %d", rr.Code)
+	}
+}
+
+func TestHandlerRejectsTrailingJSON(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "a"}}, nil)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/v1/search", strings.NewReader(`{"query":"q"}{"query":"again"}`))
+	Handler(s).ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("got %d body=%s", rr.Code, rr.Body.String())
 	}
 }

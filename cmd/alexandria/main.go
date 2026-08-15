@@ -57,8 +57,9 @@ func main() {
 		svc.Timeout = d
 	}
 	addr := env("ALEXANDRIA_ADDR", ":8080")
-	log.Printf("alexandria listening on %s (providers=%s)", addr, strings.Join(svc.ProviderNames(), ","))
-	if err := http.ListenAndServe(addr, search.Handler(svc)); err != nil {
+	apiKey := os.Getenv("ALEXANDRIA_API_KEY")
+	log.Printf("alexandria listening on %s (providers=%s, api_auth=%t)", addr, strings.Join(svc.ProviderNames(), ","), apiKey != "")
+	if err := http.ListenAndServe(addr, search.HandlerWithAPIKey(svc, apiKey)); err != nil {
 		log.Fatal(err)
 	}
 }

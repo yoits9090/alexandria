@@ -19,6 +19,13 @@ func decodeJSON(r *http.Request, v any) error {
 	if err := d.Decode(v); err != nil {
 		return fmt.Errorf("invalid JSON: %w", err)
 	}
+	var extra any
+	if err := d.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("invalid JSON: multiple values")
+		}
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
 	return nil
 }
 func writeJSON(w http.ResponseWriter, status int, v any) {
