@@ -5,8 +5,6 @@ import (
 	"strings"
 )
 
-const minimumTokenBudget = 34
-
 // TokenEstimator deliberately has no tokenizer dependency. It is conservative
 // enough for an API boundary and can be replaced by a model-specific tokenizer.
 type TokenEstimator interface {

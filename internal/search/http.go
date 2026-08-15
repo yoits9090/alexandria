@@ -1,7 +1,9 @@
 package search
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,6 +44,9 @@ func respondSearch(w http.ResponseWriter, resp SearchResponse, err error) {
 	}
 	if err != nil {
 		status := http.StatusBadGateway
+		if errors.Is(err, context.DeadlineExceeded) {
+			status = http.StatusGatewayTimeout
+		}
 		message := err.Error()
 		if strings.HasPrefix(message, "query is required") || strings.HasPrefix(message, "max_results") || strings.HasPrefix(message, "max_tokens") || strings.HasPrefix(message, "unknown provider") || strings.HasPrefix(message, "no search providers") || strings.HasPrefix(message, "too many providers") || strings.HasPrefix(message, "content must") || strings.HasPrefix(message, "format must") || strings.Contains(message, "does not support") {
 			status = http.StatusBadRequest

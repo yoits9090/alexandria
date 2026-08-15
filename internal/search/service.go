@@ -86,8 +86,8 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 	if maxT > s.MaxTokens {
 		maxT = s.MaxTokens
 	}
-	if maxT < minimumTokenBudget {
-		return SearchResponse{}, fmt.Errorf("max_tokens must be at least %d", minimumTokenBudget)
+	if maxT <= 0 {
+		return SearchResponse{}, fmt.Errorf("max_tokens must be positive")
 	}
 	count := maxR
 	if count > int(^uint(0)>>1)/2 {
@@ -102,8 +102,8 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 		err     error
 		latency int64
 	}
-	ch := make(chan result, len(names))
-	var wg sync.WaitGroup
+	// Validate every selected provider before spending any provider request.
+	selected := make([]Provider, 0, len(names))
 	for _, name := range names {
 		p, ok := s.providers[name]
 		if !ok {
@@ -134,6 +134,12 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 		if req.SearchDepth != "" && caps.SearchDepthValues != nil && !caps.SearchDepthValues[strings.ToLower(req.SearchDepth)] {
 			return SearchResponse{}, fmt.Errorf("provider %q does not support search_depth value %q", name, req.SearchDepth)
 		}
+		selected = append(selected, p)
+	}
+	ch := make(chan result, len(names))
+	var wg sync.WaitGroup
+	for i, name := range names {
+		p := selected[i]
 		wg.Add(1)
 		go func(name string, p Provider) {
 			defer wg.Done()
@@ -166,12 +172,14 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 		statuses = append(statuses, st)
 	}
 	sort.Slice(statuses, func(i, j int) bool { return statuses[i].Name < statuses[j].Name })
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return SearchResponse{Query: query, Providers: statuses, Usage: Usage{MaxTokens: maxT}}, ctxErr
+	}
 	if success == 0 {
 		return SearchResponse{Query: query, Providers: statuses, Usage: Usage{MaxTokens: maxT}}, fmt.Errorf("all providers failed")
 	}
-	// Deduplicate across providers after normalization so duplicate URLs do not
-	// consume the caller's max_results budget.
-	all = dedupeResults(all)
+	// Rank deterministically before deduplication so provider completion order
+	// cannot choose the winning duplicate.
 	sort.SliceStable(all, func(i, j int) bool {
 		if all[i].Score != all[j].Score {
 			return all[i].Score > all[j].Score
@@ -181,6 +189,7 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 		}
 		return all[i].URL < all[j].URL
 	})
+	all = dedupeResults(all)
 	if len(all) > maxR {
 		all = all[:maxR]
 	}
@@ -260,6 +269,9 @@ func HandlerWithOptions(s *Service, apiKey string, limiter *RateLimiter) http.Ha
 				q = values.Get("query")
 			}
 			maxResults, err := optionalInt(values, "max_results")
+			if _, present := values["limit"]; present {
+				maxResults, err = optionalInt(values, "limit")
+			}
 			if err != nil {
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
@@ -281,9 +293,16 @@ func HandlerWithOptions(s *Service, apiKey string, limiter *RateLimiter) http.Ha
 				return
 			}
 			req := SearchRequest{Query: q, MaxResults: maxResults, MaxTokens: maxTokens, Freshness: values.Get("freshness"), SearchDepth: values.Get("search_depth"), Language: values.Get("language"), Region: values.Get("region"), Content: values.Get("content")}
+			if req.Language == "" {
+				req.Language = values.Get("lang")
+			}
 			req.IncludeDomains = splitCSV(values.Get("include_domains"))
 			req.ExcludeDomains = splitCSV(values.Get("exclude_domains"))
-			if rawSafe := values.Get("safe_search"); rawSafe != "" {
+			rawSafe := values.Get("safe_search")
+			if rawSafe == "" {
+				rawSafe = values.Get("safesearch")
+			}
+			if rawSafe != "" {
 				safe, ok := parseSafeSearch(rawSafe)
 				if !ok {
 					writeError(w, 400, "safe_search must be true or false")

@@ -1,7 +1,6 @@
 package search
 
 import (
-	"context"
 	"testing"
 )
 
@@ -30,9 +29,9 @@ func TestGlobalDedup(t *testing.T) {
 	}
 }
 
-func TestTinyBudgetRejected(t *testing.T) {
-	s := NewService([]Provider{fakeProvider{name: "a"}}, nil)
-	if _, err := s.Search(context.Background(), SearchRequest{Query: "q", MaxTokens: 1}); err == nil {
-		t.Fatal("expected tiny budget error")
+func TestTinyBudgetTruncates(t *testing.T) {
+	r, u := pack([]SearchResult{{Title: "T", URL: "https://e.test"}}, 1, ApproxTokenizer{})
+	if len(r) != 0 || !u.Truncated {
+		t.Fatalf("%#v %#v", r, u)
 	}
 }
