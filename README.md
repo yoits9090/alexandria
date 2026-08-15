@@ -28,7 +28,7 @@ curl -sS -X POST http://localhost:8080/v1/search \
   -d '{"query":"Go context cancellation","max_results":5,"max_tokens":500}' | jq
 ```
 
-Endpoints: `GET /healthz`, `GET /readyz`, `GET /openapi.json`, `GET /v1/search?q=...`, `POST /v1/search`. Compatibility aliases preserve the original split: `/search` defaults to HTML and accepts `json`, `text`, or `html`; `/api/search` is always JSON and ignores its `format` parameter. `/v1/search` defaults to JSON.
+Endpoints: `GET /healthz`, `GET /readyz`, `GET /openapi.json`, `GET /v1/search?q=...`, `POST /v1/search`. Compatibility aliases preserve the original split: `/search` defaults to HTML and accepts `json`, `text`, or `html`; `/api/search` is always JSON and ignores its `format` parameter. Use ``format=toon` on `/v1/search` or `/search` for the compact LLM context representation. `/v1/search` defaults to JSON.
 
 ## Request and response
 
@@ -37,6 +37,17 @@ Endpoints: `GET /healthz`, `GET /readyz`, `GET /openapi.json`, `GET /v1/search?q
 ```
 
 The response includes `results`, per-provider `ok/error/results/latency_ms`, and `usage` (`output_tokens`, `max_tokens`, `truncated`, `estimated`). Token use is estimated with a dependency-free rune/4 fallback; a model-specific tokenizer can be plugged into the service later. The budget includes the result JSON envelope and preserves title/URL before truncating snippets.
+
+For LLM context, `format=toon` returns a compact projection rather than the full diagnostics response:
+
+```toon
+query: Go programming language
+sources[2]{id,title,url,snippet,source}:
+  1,The Go Programming Language,"https://go.dev/",Open source language,searx
+  2,Go Wikipedia,"https://en.wikipedia.org/wiki/Go_(programming_language)",A programming language,searx
+```
+
+TOON uses fixed-shape tabular rows, stable citation IDs, and safe quoting. It is presentation encoding: the normal JSON search budget is applied before projection, and provider/usage diagnostics are intentionally omitted. Savings improve with repeated result rows; they are not a fixed percentage guarantee.
 
 A provider failure does not discard successful results; HTTP 502 is returned only when all selected providers fail.
 
@@ -51,7 +62,7 @@ Set `ALEXANDRIA_API_KEY` to protect `/v1/search`, `/search`, and `/api/search`. 
 
 ## LLM smoke harness
 
-`tools/jcode.py` is a tiny OpenAI-compatible harness. It searches Alexandria, then optionally asks a DeepSeek-compatible endpoint to answer only from returned sources. It defaults to `DEEPSEEK_MODEL=deepseek-v4-flash`; set your account's model name explicitly if your endpoint exposes a different “V4 Flash” identifier. **Never put an API key in source, git, or Colab command history.**
+`tools/jcode.py` is a tiny OpenAI-compatible harness. It searches Alexandria, uses TOON by default for the LLM prompt when DeepSeek is enabled, and optionally asks a DeepSeek-compatible endpoint to answer only from returned sources. stdout remains JSON by default; use `--toon` to print the compact context. It defaults to `DEEPSEEK_MODEL=deepseek-v4-flash`; set your account's model name explicitly if your endpoint exposes a different “V4 Flash” identifier. **Never put an API key in source, git, or Colab command history.**
 
 ```bash
 export DEEPSEEK_API_KEY='...'

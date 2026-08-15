@@ -351,8 +351,8 @@ func HandlerWithOptions(s *Service, apiKey string, limiter *RateLimiter) http.Ha
 			if r.URL.Path == "/api/search" {
 				format = "json"
 			}
-			if format != "" && format != "json" && format != "text" && format != "txt" && format != "html" {
-				writeError(w, http.StatusBadRequest, "format must be json, text, or html")
+			if format != "" && format != "json" && format != "text" && format != "txt" && format != "html" && format != "toon" {
+				writeError(w, http.StatusBadRequest, "format must be json, text, html, or toon")
 				return
 			}
 			resp, err := s.Search(r.Context(), req)
@@ -435,6 +435,15 @@ func writeFormat(w http.ResponseWriter, format string, resp SearchResponse) {
 	switch strings.ToLower(format) {
 	case "json":
 		writeJSON(w, http.StatusOK, resp)
+	case "toon":
+		encoded, err := EncodeTOON(resp)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "text/toon; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(encoded))
 	case "text", "txt":
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		for _, r := range resp.Results {
@@ -447,6 +456,6 @@ func writeFormat(w http.ResponseWriter, format string, resp SearchResponse) {
 			fmt.Fprintf(w, "<article><h2><a href=\"%s\">%s</a></h2><p>%s</p></article>", html.EscapeString(r.URL), html.EscapeString(r.Title), html.EscapeString(r.Snippet))
 		}
 	default:
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "format must be json, text, or html"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "format must be json, text, html, or toon"})
 	}
 }
