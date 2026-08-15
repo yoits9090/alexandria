@@ -1,0 +1,10 @@
+# local configuration and credentials
+.env
+.env.*
+!.env.example
+*.key
+
+# build/test output
+/bin/
+/dist/
+coverage.out
