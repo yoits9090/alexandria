@@ -3,7 +3,8 @@ WORKDIR /src
 COPY go.mod ./
 COPY cmd ./cmd
 COPY internal ./internal
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /alexandria ./cmd/alexandria
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /alexandria ./cmd/alexandria
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /alexandria /alexandria

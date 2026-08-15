@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -15,7 +17,18 @@ import (
 	"github.com/yoits9090/alexandria/internal/search"
 )
 
+// version is stamped at build time with
+// -ldflags "-X main.version=v0.1.0" (defaults to "dev").
+var version = "dev"
+
 func main() {
+	addrFlag := flag.String("addr", "", "listen address (overrides ALEXANDRIA_ADDR)")
+	showVersion := flag.Bool("version", false, "print version and exit")
+	flag.Parse()
+	if *showVersion {
+		fmt.Printf("alexandria %s\n", version)
+		return
+	}
 	client := &http.Client{Timeout: 10 * time.Second}
 	braveKey := os.Getenv("BRAVE_SEARCH_API_KEY")
 	tavilyKey := os.Getenv("TAVILY_API_KEY")
@@ -69,6 +82,9 @@ func main() {
 		svc.Timeout = d
 	}
 	addr := env("ALEXANDRIA_ADDR", ":8080")
+	if *addrFlag != "" {
+		addr = *addrFlag
+	}
 	apiKey := os.Getenv("ALEXANDRIA_API_KEY")
 	rateLimit := envInt("ALEXANDRIA_RATE_LIMIT", 0)
 	limiter := search.NewRateLimiter(rateLimit, time.Minute)

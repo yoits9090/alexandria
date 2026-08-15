@@ -1,0 +1,39 @@
+{
+  "name": "alexandria-search",
+  "version": "0.1.0",
+  "description": "Local search daemon for LLM apps: provider-neutral search gateway with a hard token budget (Brave, Tavily, SearXNG, Serper, Exa, Google CSE).",
+  "keywords": [
+    "search",
+    "llm",
+    "rag",
+    "agent",
+    "daemon",
+    "searxng",
+    "brave",
+    "tavily",
+    "serper",
+    "exa"
+  ],
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yoits9090/alexandria.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "alexandria": "bin/alexandria.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build:binary": "go build -ldflags \"-X main.version=v$npm_package_version\" -o vendor/alexandria ../cmd/alexandria",
+    "postinstall": "node lib/download.js",
+    "test": "node --test"
+  }
+}

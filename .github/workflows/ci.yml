@@ -19,3 +19,22 @@ jobs:
           python-version: '3.11'
       - run: python -m py_compile tools/jcode.py tools/colab_smoke.py tools/colab_node_smoke.py tools/test_jcode.py
       - run: python tools/test_jcode.py
+  npm-daemon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: npm/package-lock.json
+      - run: npm ci
+        working-directory: npm
+      - run: npm run build:binary
+        working-directory: npm
+      - run: npm test
+        working-directory: npm

@@ -27,6 +27,33 @@ curl -sS 'http://localhost:8080/v1/search?q=Go%20context%20cancellation&max_resu
   -H 'accept: text/toon' 
 ```
 
+## Local daemon via npm
+
+For a cheap local install (no Docker, no Go toolchain), the `alexandria-search`
+npm package manages the gateway as a background daemon and downloads the
+prebuilt binary from GitHub releases:
+
+```bash
+npm install -g alexandria-search
+alexandria start                             # daemonize the gateway on :8080
+alexandria search 'latest Go release notes'  # TOON output, ready for an LLM
+alexandria status && alexandria logs -n 50
+alexandria stop                              # graceful SIGTERM
+```
+
+No release published yet? Build from source instead:
+
+```bash
+ALEXANDRIA_SKIP_DOWNLOAD=1 npm install -g --ignore-scripts alexandria-search
+# from a checkout of this repository:
+cd npm && npm run build:binary && npm link
+```
+
+Provider keys and limits come from the same environment variables as the
+plain binary (`ALEXANDRIA_ADDR`, `ALEXANDRIA_API_KEY`, `ALEXANDRIA_RATE_LIMIT`,
+`BRAVE_SEARCH_API_KEY`, ...); an `ALEXANDRIA_ENV_FILE` can hold them. Runtime
+state (pid file, log) lives in `~/.alexandria` by default.
+
 Endpoints: `GET /healthz`, `GET /readyz`, `GET /openapi.json`, `GET /v1/search?q=...` (TOON by default), and `POST /v1/search` (TOON by default; set `format` or `Accept` for another representation). TOON is the main representation: `/v1/search` and `/search` default to `text/toon` and accept `json`, `text`, `html`, or `toon`; `/api/search` remains JSON for legacy clients and ignores its `format` parameter. Use `format=json` when a JSON response is needed.
 
 ## Request and response
