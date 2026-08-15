@@ -214,3 +214,25 @@ func TestLegacyRouteFormats(t *testing.T) {
 		}
 	}
 }
+
+func TestServicePartialTimeoutKeepsSuccess(t *testing.T) {
+	s := NewService([]Provider{
+		fakeProvider{name: "slow", delay: 50 * time.Millisecond, page: ProviderPage{Results: []ProviderResult{{Title: "slow", URL: "https://slow.test"}}}},
+		fakeProvider{name: "fast", page: ProviderPage{Results: []ProviderResult{{Title: "fast", URL: "https://fast.test"}}}},
+	}, []string{"slow", "fast"})
+	s.Timeout = 5 * time.Millisecond
+	r, err := s.Search(context.Background(), SearchRequest{Query: "q"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Results) != 1 || r.Results[0].Title != "fast" {
+		t.Fatalf("results=%#v statuses=%#v", r.Results, r.Providers)
+	}
+}
+func TestServiceAllTimeoutReturnsDeadline(t *testing.T) {
+	s := NewService([]Provider{fakeProvider{name: "slow", delay: 50 * time.Millisecond}}, nil)
+	s.Timeout = 5 * time.Millisecond
+	if _, err := s.Search(context.Background(), SearchRequest{Query: "q"}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err=%v", err)
+	}
+}
