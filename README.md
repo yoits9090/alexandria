@@ -9,7 +9,7 @@ Alexandria is a Go search gateway for LLM applications—the renewal of `ugpt-se
 - **LLM-first output:** `max_tokens` is a hard budget for the serialized search context. Results are normalized, URL-deduplicated, tracking parameters removed, and snippets packed greedily at word boundaries.
 - **Provider-neutral:** one canonical endpoint, predictable fields, and partial-failure statuses. API keys remain server-side.
 - **Compatible by design:** adapter contract maps common provider features (`freshness`, domains, language, region, safe search, depth) without leaking provider-specific payloads.
-- **Sleep-safe development:** the repo is self-contained, has no runtime dependency downloads, and includes a Colab workflow for remote smoke tests.
+- **Online SearXNG by default:** when no fixed `SEARX_URL` is supplied, Alexandria discovers and rotates across public HTTPS SearXNG instances from `searx.space`; it does not require a local SearX service.
 
 ## Quick start
 
@@ -44,7 +44,7 @@ A provider failure does not discard successful results; HTTP 502 is returned onl
 
 - Brave: `BRAVE_SEARCH_API_KEY` and optional `BRAVE_SEARCH_URL`.
 - Tavily: `TAVILY_API_KEY` and optional `TAVILY_SEARCH_URL`.
-- SearXNG: `SEARX_URL` pointing at a trusted instance (for example `https://search.example/search` or its base URL).
+- SearXNG: by default Alexandria discovers public online HTTPS instances from `searx.space`. Set `SEARX_URL` only to override with a fixed instance, or set `ALEXANDRIA_DISABLE_SEARX=1` to disable it. `SEARX_REGISTRY_URL` and `SEARX_INSTANCE_LIMIT` control discovery.
 - Serper, Exa, and Google CSE: set the corresponding API key variables in `.env.example`; Google also needs `GOOGLE_CSE_ID`. Bing is legacy-only and should not be selected for new deployments.
 
 Set `ALEXANDRIA_API_KEY` to protect `/v1/search`, `/search`, and `/api/search`. Clients may send `Authorization: Bearer <key>` or `X-API-Key: <key>`; `/healthz`, `/readyz`, and `/openapi.json` stay public for probes. Set `ALEXANDRIA_RATE_LIMIT` to a positive requests-per-minute value for an in-process per-client limit; `0` disables it. The limiter keys by direct peer IP and is process-local, so configure shared edge controls for multi-instance deployments. The server never logs keys. For production, put it behind TLS and use a secrets manager. Provider costs and LLM token costs are intentionally separate; future policy can select providers by latency, freshness, and dollar budget.
@@ -88,7 +88,7 @@ For a one-shot job that always cleans up, use `colab --auth=adc run tools/colab_
 2. Add optional page extraction with a separate budget and explicit opt-in; snippets remain the cheap default.
 3. Add exact tokenizer plugins and model-specific serialization budgets.
 4. Add evaluation fixtures measuring answer quality per token and provider cost/latency.
-5. Harden dynamic SearXNG discovery with probing, health scoring, and per-instance cooldowns.
+5. Improve online SearXNG discovery with active JSON probing and health scoring.
 
 ## License
 

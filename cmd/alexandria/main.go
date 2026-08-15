@@ -30,7 +30,14 @@ func main() {
 		defaults = append(defaults, "tavily")
 	}
 	if searxURL != "" {
+		// Explicit URL is an operator-managed instance override.
 		ps = append(ps, search.NewSearX(searxURL, client))
+		defaults = append(defaults, "searx")
+	} else if os.Getenv("ALEXANDRIA_DISABLE_SEARX") != "1" {
+		// Default behavior uses the public online SearXNG pool; no local
+		// SearX process is required.
+		pool := search.NewSearXPool(env("SEARX_REGISTRY_URL", "https://searx.space/data/instances.json"), envInt("SEARX_INSTANCE_LIMIT", 12), client)
+		ps = append(ps, pool)
 		defaults = append(defaults, "searx")
 	}
 	if serperKey != "" {
