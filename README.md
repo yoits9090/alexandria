@@ -73,11 +73,11 @@ For a one-shot job that always cleans up, use `colab --auth=adc run tools/colab_
 
 ## Roadmap
 
-1. Add Brave/Tavily contract fixtures and retry/backoff tests (no live keys required).
-2. Add Serper, Google Custom Search, Bing, Exa, and OpenAI-compatible search adapters.
-3. Add optional page extraction with a separate budget and explicit opt-in; snippets remain the cheap default.
-4. Add OpenAPI, API-key auth, rate limits, caching, provider health/circuit breakers, and exact tokenizer plugins.
-5. Add evaluation fixtures measuring answer quality per token and provider cost/latency.
+1. Add provider circuit breakers, caching, API-key auth, and rate limits.
+2. Add optional page extraction with a separate budget and explicit opt-in; snippets remain the cheap default.
+3. Add exact tokenizer plugins and model-specific serialization budgets.
+4. Add evaluation fixtures measuring answer quality per token and provider cost/latency.
+5. Harden dynamic SearXNG discovery with probing, health scoring, and per-instance cooldowns.
 
 ## License
 
