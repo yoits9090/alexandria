@@ -67,4 +67,4 @@ Endpoints: `/healthz`, `/readyz`, `/openapi.json`, `/v1/search`, `/search`,
 
 ## License
 
-GPL-3.0-or-later.
+MIT License.

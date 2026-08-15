@@ -129,4 +129,4 @@ For a one-shot job that always cleans up, use `colab --auth=adc run tools/colab_
 
 ## License
 
-GNU General Public License v3.0 or later (GPL-3.0-or-later), retaining the original UGPTSearch project's copyleft direction. This is a new implementation; no code or secrets were copied from the prior repository.
+MIT License (see [LICENSE](LICENSE)). Alexandria is a new implementation; no code or secrets were copied from the prior UGPTSearch repository.
