@@ -24,15 +24,50 @@ def post_json(url,payload,headers=None,timeout=45):
     if status<200 or status>=300: raise RuntimeError(f"search endpoint returned HTTP {status}")
     return json.loads(body)
 
+def numeric_like(value):
+    """Mirror of internal/search/toon.go numericLike: bare numbers quote."""
+    i, n = 0, len(value)
+    if i < n and value[i] in "+-": i += 1
+    start = i
+    while i < n and value[i].isdigit(): i += 1
+    if i == start: return False
+    if i < n and value[i] == ".":
+        i += 1
+        frac = i
+        while i < n and value[i].isdigit(): i += 1
+        if i == frac: return False
+    if i < n and value[i] in "eE":
+        i += 1
+        if i < n and value[i] in "+-": i += 1
+        exp = i
+        while i < n and value[i].isdigit(): i += 1
+        if i == exp: return False
+    return i == n
+
+def toon_quote(v):
+    """Mirror of internal/search/toon.go toonString/toonNeedsQuote so the
+    JSON fallback path emits exactly the same projection as the server."""
+    s = "" if v is None else str(v)
+    if not s: return '""'
+    needs = (s in {"true","false","null"} or s[0] in "-#" or s[0] in " \t" or s[-1] in " \t"
+             or numeric_like(s) or any(c in s for c in ',:"\\[]{}\n\r\t') or any(ord(c) < 0x20 for c in s))
+    if not needs: return s
+    out = ['"']
+    for c in s:
+        if c == "\\": out.append("\\\\")
+        elif c == '"': out.append('\\"')
+        elif c == "\n": out.append("\\n")
+        elif c == "\r": out.append("\\r")
+        elif c == "\t": out.append("\\t")
+        elif ord(c) < 0x20: out.append("\\u%04x" % ord(c))
+        else: out.append(c)
+    out.append('"')
+    return "".join(out)
+
 def source_toon(search):
     rows=search.get("results") or []
-    def q(v):
-        s="" if v is None else str(v)
-        needs=(not s or s[0] in "-#" or s[0].isspace() or s[-1].isspace() or s in {"true","false","null"} or any(c in s for c in ',:"\\[]{}\n\r\t'))
-        if not needs: return s
-        return '"'+s.replace('\\','\\\\').replace('"','\\"').replace('\n','\\n').replace('\r','\\r').replace('\t','\\t')+'"'
     out=["sources[%d]{id,title,url,snippet,source}:"%len(rows)]
-    for i,r in enumerate(rows,1): out.append("  %d,%s,%s,%s,%s"%(i,q(r.get("title","")),q(r.get("url","")),q(r.get("snippet","")),q(r.get("source",""))))
+    for i,r in enumerate(rows,1): out.append("  %d,%s,%s,%s,%s"%(i,toon_quote(r.get("title","")),toon_quote(r.get("url","")),toon_quote(r.get("snippet","")),toon_quote(r.get("source",""))))
     return "\n".join(out)
 
 def fetch_search(url,query,max_results,max_tokens,prompt_format="toon",timeout=45):

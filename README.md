@@ -48,7 +48,7 @@ sources[2]{id,title,url,snippet,source}:
 
 TOON uses fixed-shape tabular rows, stable citation IDs, and safe quoting. It is presentation encoding: the normal JSON search budget is applied before projection, and provider/usage diagnostics are intentionally omitted. Savings improve with repeated result rows; they are not a fixed percentage guarantee.
 
-A provider failure does not discard successful results; HTTP 502 is returned only when all selected providers fail.
+A provider failure does not discard successful results; HTTP 502 is returned only when all selected providers fail. Provider timeouts are reported as 504, and client-cancelled requests as 499. `ALEXANDRIA_DEFAULT_MAX_TOKENS`, `ALEXANDRIA_MAX_TOKENS`, `ALEXANDRIA_MAX_RESULTS`, and `ALEXANDRIA_REQUEST_TIMEOUT` bound the request defaults and provider calls.
 
 ## Provider setup
 
