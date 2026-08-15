@@ -28,7 +28,7 @@ curl -sS -X POST http://localhost:8080/v1/search \
   -d '{"query":"Go context cancellation","max_results":5,"max_tokens":500}' | jq
 ```
 
-Endpoints: `GET /healthz`, `GET /readyz`, `GET /openapi.json`, `GET /v1/search?q=...`, `POST /v1/search`. Compatibility aliases preserve the original split: `/search` defaults to HTML and accepts `json`, `text`, or `html`; `/api/search` is always JSON. `/v1/search` defaults to JSON.
+Endpoints: `GET /healthz`, `GET /readyz`, `GET /openapi.json`, `GET /v1/search?q=...`, `POST /v1/search`. Compatibility aliases preserve the original split: `/search` defaults to HTML and accepts `json`, `text`, or `html`; `/api/search` is always JSON and ignores its `format` parameter. `/v1/search` defaults to JSON.
 
 ## Request and response
 
