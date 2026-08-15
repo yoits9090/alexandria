@@ -58,6 +58,17 @@ export DEEPSEEK_API_KEY='...'
 python3 tools/jcode.py 'What changed in Go recently?' --search-url http://localhost:8080/v1/search
 ```
 
+## Container and CI
+
+A minimal non-root distroless image is provided:
+
+```bash
+docker build -t alexandria .
+docker run --rm -p 8080:8080 --env-file .env alexandria
+```
+
+GitHub Actions runs Go race tests, vet, builds, and Python harness syntax checks on pushes and pull requests.
+
 ## Colab
 
 A persistent CPU Colab node named `alexandria` can be recreated or continued with the CLI. It is useful for sleep-safe remote smoke tests, but the node is billable while alive; stop it when finished:
