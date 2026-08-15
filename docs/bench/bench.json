@@ -1,0 +1,74 @@
+[
+  {
+    "query": "latest Go release notes",
+    "results": 7,
+    "raw_tokens": 1195,
+    "json_tokens": 805,
+    "toon_tokens": 586,
+    "raw_bytes": 4779,
+    "toon_bytes": 2344
+  },
+  {
+    "query": "Cerebras inference throughput benchmarks",
+    "results": 8,
+    "raw_tokens": 1339,
+    "json_tokens": 882,
+    "toon_tokens": 639,
+    "raw_bytes": 5356,
+    "toon_bytes": 2554
+  },
+  {
+    "query": "best GPU for training a 70B model",
+    "results": 6,
+    "raw_tokens": 1040,
+    "json_tokens": 696,
+    "toon_tokens": 503,
+    "raw_bytes": 4159,
+    "toon_bytes": 2009
+  },
+  {
+    "query": "recursive self-improvement LLM research",
+    "results": 7,
+    "raw_tokens": 1198,
+    "json_tokens": 796,
+    "toon_tokens": 578,
+    "raw_bytes": 4792,
+    "toon_bytes": 2309
+  },
+  {
+    "query": "SearXNG public instance list",
+    "results": 6,
+    "raw_tokens": 967,
+    "json_tokens": 626,
+    "toon_tokens": 432,
+    "raw_bytes": 3866,
+    "toon_bytes": 1727
+  },
+  {
+    "query": "test-time compute scaling laws",
+    "results": 8,
+    "raw_tokens": 1306,
+    "json_tokens": 856,
+    "toon_tokens": 613,
+    "raw_bytes": 5222,
+    "toon_bytes": 2450
+  },
+  {
+    "query": "NanoGPT speedrun results",
+    "results": 6,
+    "raw_tokens": 984,
+    "json_tokens": 646,
+    "toon_tokens": 453,
+    "raw_bytes": 3934,
+    "toon_bytes": 1811
+  },
+  {
+    "query": "RAG latency optimization techniques",
+    "results": 7,
+    "raw_tokens": 1137,
+    "json_tokens": 737,
+    "toon_tokens": 518,
+    "raw_bytes": 4545,
+    "toon_bytes": 2070
+  }
+]
