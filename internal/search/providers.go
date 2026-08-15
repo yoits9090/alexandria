@@ -63,7 +63,7 @@ func (p *HTTPProvider) Name() string { return p.name }
 func (p *HTTPProvider) Capabilities() Capabilities {
 	caps := Capabilities{Freshness: p.name != "exa", Domains: p.name == "tavily" || p.name == "exa", Language: p.name != "tavily" && p.name != "exa", Region: p.name != "searx", SafeSearch: p.name == "brave" || p.name == "tavily" || p.name == "bing" || p.name == "google" || p.name == "searx", SearchDepth: p.name == "tavily" || p.name == "exa"}
 	if p.name == "searx" {
-		caps.FreshnessValues = map[string]bool{"pd": true, "day": true, "d": true, "pm": true, "month": true, "m": true, "py": true, "year": true, "y": true}
+		caps.FreshnessValues = map[string]bool{"pd": true, "day": true, "d": true, "pw": true, "week": true, "w": true, "pm": true, "month": true, "m": true, "py": true, "year": true, "y": true}
 	}
 	if p.name == "tavily" {
 		caps.SearchDepthValues = map[string]bool{"basic": true, "advanced": true, "fast": true, "deep": true, "deep-reasoning": true}
@@ -463,6 +463,8 @@ func searxFreshness(v string) string {
 	switch strings.ToLower(v) {
 	case "pd", "day", "d":
 		return "day"
+	case "pw", "week", "w":
+		return "week"
 	case "pm", "month", "m":
 		return "month"
 	case "py", "year", "y":

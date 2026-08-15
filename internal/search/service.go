@@ -185,7 +185,7 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (SearchResponse
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return SearchResponse{Query: query, Providers: statuses, Usage: Usage{MaxTokens: maxT}}, ctxErr
 	}
-	if deadlineFailure {
+	if deadlineFailure && success == 0 {
 		return SearchResponse{Query: query, Providers: statuses, Usage: Usage{MaxTokens: maxT}}, context.DeadlineExceeded
 	}
 	if success == 0 {
