@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
 
-// DiscoverSearX fetches the public searx.space registry and returns only
-// instances explicitly marked as online. Consumers should still probe and
-// rate-limit these endpoints; public instances are best-effort fallbacks.
+// DiscoverSearX fetches the public searx.space registry and returns HTTPS
+// instances that the registry currently reports as reachable. Discovery is
+// deliberately opt-in: public instances are untrusted, best-effort fallbacks
+// and should still be probed, rate-limited, and monitored by the caller.
 func DiscoverSearX(ctx context.Context, registryURL string, limit int, client *http.Client) ([]string, error) {
 	if registryURL == "" {
 		registryURL = "https://searx.space/data/instances.json"
@@ -33,26 +35,41 @@ func DiscoverSearX(ctx context.Context, registryURL string, limit int, client *h
 	}
 	var raw struct {
 		Instances map[string]struct {
-			Status string `json:"status"`
-			IsTor  bool   `json:"is_tor"`
+			// Older registry fixtures used status/is_tor. The live registry
+			// uses http.status_code and network_type, so accept both forms.
+			Status      string `json:"status"`
+			IsTor       bool   `json:"is_tor"`
+			NetworkType string `json:"network_type"`
+			HTTP        struct {
+				StatusCode int `json:"status_code"`
+			} `json:"http"`
 		} `json:"instances"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
 		return nil, err
 	}
-	out := []string{}
+	hosts := make([]string, 0, len(raw.Instances))
 	for host, v := range raw.Instances {
-		if v.Status != "online" || v.IsTor {
+		if v.IsTor || strings.EqualFold(v.NetworkType, "tor") {
+			continue
+		}
+		// Preserve compatibility with small fixtures and older registries,
+		// while requiring a successful HTTP probe for the current registry.
+		if v.Status != "" && v.Status != "online" {
+			continue
+		}
+		if v.Status == "" && v.HTTP.StatusCode != 0 && v.HTTP.StatusCode != http.StatusOK {
 			continue
 		}
 		host = strings.TrimRight(host, "/")
-		if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
-			host = "https://" + host
+		if !strings.HasPrefix(host, "https://") {
+			continue // do not send search queries to plaintext public instances
 		}
-		out = append(out, host)
-		if limit > 0 && len(out) >= limit {
-			break
-		}
+		hosts = append(hosts, host)
 	}
-	return out, nil
+	sort.Strings(hosts)
+	if limit > 0 && len(hosts) > limit {
+		hosts = hosts[:limit]
+	}
+	return hosts, nil
 }
