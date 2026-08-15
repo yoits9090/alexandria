@@ -11,3 +11,6 @@ coverage.out
 
 # local cross-compiled smoke binaries
 *.linux-*
+
+__pycache__/
+*.py[cod]
