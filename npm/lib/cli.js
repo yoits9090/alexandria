@@ -128,7 +128,9 @@ async function main(argv) {
       return;
     }
 
-    case 'version': {
+    case 'version':
+    case '--version':
+    case '-v': {
       const bin = ensureBinary();
       console.log(`alexandria-search npm ${pkg.version}`);
       console.log(`binary: ${bin}`);
