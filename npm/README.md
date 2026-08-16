@@ -1,9 +1,8 @@
 # alexandria-search
 
 Installable wrapper for [Alexandria](https://github.com/yoits9090/alexandria), a
-provider-neutral **search daemon for LLM applications**: one local HTTP endpoint
-that fronts Brave, Tavily, SearXNG, Serper, Exa, and Google Custom Search with
-normalized results and a hard `max_tokens` budget.
+provider-neutral search gateway: one HTTP API for Brave, Tavily, SearXNG,
+Serper, Exa, and Google CSE.
 
 The npm package manages the daemon lifecycle (`start`/`stop`/`status`/`logs`)
 and gives you a `search` command that returns LLM-ready context (TOON by

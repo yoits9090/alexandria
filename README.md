@@ -1,9 +1,6 @@
 # Alexandria
 
-One local search daemon for every LLM agent. Alexandria fronts Brave, Tavily,
-SearXNG, Serper, Exa, and Google Custom Search behind a single provider-neutral
-API, then normalizes, dedupes, and packs the results into a compact,
-token-budgeted output format (TOON) that agents can afford to read.
+Provider-neutral search gateway: one HTTP API for Brave, Tavily, SearXNG, Serper, Exa, and Google CSE.
 
 ![Average prompt tokens per query: raw provider payload vs Alexandria](docs/images/hero-tokens.png)
 

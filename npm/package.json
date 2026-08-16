@@ -1,7 +1,7 @@
 {
   "name": "alexandria-search",
   "version": "0.1.0",
-  "description": "Local search daemon for LLM apps: provider-neutral search gateway with a hard token budget (Brave, Tavily, SearXNG, Serper, Exa, Google CSE).",
+  "description": "Provider-neutral search gateway: one HTTP API for Brave, Tavily, SearXNG, Serper, Exa, and Google CSE.",
   "keywords": [
     "search",
     "llm",

@@ -69,7 +69,7 @@ func openAPISpec() map[string]any {
 		"info": map[string]any{
 			"title":       "Alexandria Search API",
 			"version":     "0.1.0",
-			"description": "Provider-neutral search gateway for LLM applications. Authentication and rate limiting are optional, enabled by ALEXANDRIA_API_KEY and ALEXANDRIA_RATE_LIMIT; the documented security schemes apply only when configured.",
+			"description": "Provider-neutral search gateway: one HTTP API for Brave, Tavily, SearXNG, Serper, Exa, and Google CSE. Authentication and rate limiting are optional, enabled by ALEXANDRIA_API_KEY and ALEXANDRIA_RATE_LIMIT; the documented security schemes apply only when configured.",
 		},
 		"paths": map[string]any{
 			"/healthz":      probe("Liveness probe"),
